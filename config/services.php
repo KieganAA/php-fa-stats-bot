@@ -59,6 +59,8 @@ return [
             'trim',
             explode(',', (string) env('TELEGRAM_REPORT_CHAT_IDS', ''))
         ))),
+        'rate_limit' => (int) env('TELEGRAM_RATE_LIMIT', 30),
+        'rate_window_seconds' => (int) env('TELEGRAM_RATE_WINDOW_SECONDS', 60),
     ],
 
 ];

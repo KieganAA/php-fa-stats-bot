@@ -2,14 +2,13 @@
 
 /** @var Nutgram $bot */
 
-use App\Models\LandingAlias;
-use App\Services\Ai\AiHandler;
-use App\Services\Ai\AiRateLimiter;
 use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Stats\AliasResolver;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\StatsFormatter;
+use App\Support\TelegramHelpers as H;
+use Illuminate\Support\Facades\Redis;
 use SergiX44\Nutgram\Nutgram;
 
 // Allowlist middleware. User passes if their numeric id OR their username matches.
@@ -33,6 +32,37 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
 
         return;
     }
+
+    return $next($bot);
+});
+
+// Per-user TG command rate limit. Sliding window over Redis ZSET.
+// Defends our own infra and the AIO budget against runaway clients.
+$bot->middleware(function (Nutgram $bot, callable $next) {
+    $limit = (int) config('services.telegram.rate_limit', 30);
+    $window = (int) config('services.telegram.rate_window_seconds', 60);
+    if ($limit <= 0) {
+        return $next($bot);
+    }
+
+    $userId = (string) $bot->userId();
+    if ($userId === '') {
+        return $next($bot);
+    }
+
+    $key = 'tg:rate:'.$userId;
+    $now = (int) (microtime(true) * 1000);
+    $cutoff = $now - $window * 1000;
+
+    $conn = Redis::connection();
+    $conn->zremrangebyscore($key, '-inf', (string) $cutoff);
+    if ((int) $conn->zcard($key) >= $limit) {
+        $bot->sendMessage('⏳ Слишком часто. Попробуй чуть позже.');
+
+        return;
+    }
+    $conn->zadd($key, $now, $now.':'.bin2hex(random_bytes(4)));
+    $conn->expire($key, $window + 1);
 
     return $next($bot);
 });
@@ -69,14 +99,14 @@ $bot->onCommand('help', function (Nutgram $bot) {
 })->description('Справка');
 
 $bot->onCommand('alias', function (Nutgram $bot) {
-    $args = telegram_args($bot);
+    $args = H::args($bot);
     $action = strtolower($args[0] ?? 'list');
 
     try {
         match ($action) {
-            'add' => telegram_alias_add($bot, array_slice($args, 1)),
-            'rm', 'remove', 'del', 'delete' => telegram_alias_rm($bot, array_slice($args, 1)),
-            'list', 'ls' => telegram_alias_list($bot),
+            'add' => H::aliasAdd($bot, array_slice($args, 1)),
+            'rm', 'remove', 'del', 'delete' => H::aliasRm($bot, array_slice($args, 1)),
+            'list', 'ls' => H::aliasList($bot),
             default => $bot->sendMessage("Неизвестное действие: {$action}\nДоступно: add | list | rm"),
         };
     } catch (Throwable $e) {
@@ -85,7 +115,7 @@ $bot->onCommand('alias', function (Nutgram $bot) {
 })->description('Управление алиасами лендингов');
 
 $bot->onCommand('stats', function (Nutgram $bot) {
-    $args = telegram_args($bot);
+    $args = H::args($bot);
     if ($args === []) {
         $bot->sendMessage('Использование: /stats <alias> [период]');
 
@@ -112,7 +142,7 @@ $bot->onCommand('stats', function (Nutgram $bot) {
         $metrics = $pivot->rows[0]['metrics'] ?? [];
         $projected = app(TargetMetricSet::class)->project($metrics);
 
-        $label = telegram_label($resolved['alias']?->alias, $resolved['landing']->name, $position);
+        $label = H::label($resolved['alias']?->alias, $resolved['landing']->name, $position);
         $html = app(StatsFormatter::class)->format($window, [
             ['label' => $label, 'metrics' => $projected],
         ]);
@@ -124,14 +154,14 @@ $bot->onCommand('stats', function (Nutgram $bot) {
 })->description('Метрики лендинга');
 
 $bot->onCommand('compare', function (Nutgram $bot) {
-    $args = telegram_args($bot);
+    $args = H::args($bot);
     if (count($args) < 2) {
         $bot->sendMessage('Использование: /compare <alias1> <alias2> [...] [период]');
 
         return;
     }
 
-    [$tokens, $period] = telegram_split_period($args);
+    [$tokens, $period] = H::splitPeriod($args);
     if (count($tokens) < 2) {
         $bot->sendMessage('Нужно минимум 2 алиаса для сравнения.');
 
@@ -172,7 +202,7 @@ $bot->onCommand('compare', function (Nutgram $bot) {
         foreach ($resolved as $r) {
             $raw = $byUuid[$r['landing']->uuid] ?? [];
             $entries[] = [
-                'label' => telegram_label($r['alias']?->alias, $r['landing']->name, $position),
+                'label' => H::label($r['alias']?->alias, $r['landing']->name, $position),
                 'metrics' => $targets->project($raw),
             ];
         }
@@ -194,132 +224,9 @@ $bot->onCommand('ai', function (Nutgram $bot) {
         return;
     }
 
-    telegram_run_ai($bot, $question);
+    H::runAi($bot, $question);
 })->description('Свободный запрос (AI)');
 
 $bot->fallback(function (Nutgram $bot) {
     $bot->sendMessage('Не понял. /help — список команд.');
 });
-
-// ---------- helpers ----------
-
-/** @return list<string> */
-function telegram_args(Nutgram $bot): array
-{
-    $text = (string) ($bot->message()?->text ?? '');
-    $parts = preg_split('/\s+/', trim($text)) ?: [];
-    array_shift($parts); // drop the command itself
-
-    return array_values(array_filter($parts, fn ($s) => $s !== ''));
-}
-
-/**
- * Splits trailing period from a list of args. Last arg is treated as a period
- * if it parses; otherwise all args are tokens and the period is null.
- *
- * @param  list<string>  $args
- * @return array{0: list<string>, 1: ?string}
- */
-function telegram_split_period(array $args): array
-{
-    if ($args === []) {
-        return [[], null];
-    }
-    $last = end($args);
-    try {
-        app(PeriodParser::class)->parse($last);
-        return [array_slice($args, 0, -1), $last];
-    } catch (Throwable) {
-        return [$args, null];
-    }
-}
-
-function telegram_label(?string $alias, string $name, int $position): string
-{
-    if ($alias) {
-        return "{$alias} (LP{$position})";
-    }
-
-    return $name.' [LP'.$position.']';
-}
-
-function telegram_alias_add(Nutgram $bot, array $args): void
-{
-    if (count($args) < 2) {
-        $bot->sendMessage('Использование: /alias add <name> <human_id|uuid> [position] [notes...]');
-
-        return;
-    }
-    [$name, $token] = $args;
-    $position = (int) ($args[2] ?? 1);
-    $notes = isset($args[3]) ? implode(' ', array_slice($args, 3)) : null;
-
-    $resolved = app(AliasResolver::class)->resolve($token);
-
-    $alias = LandingAlias::query()->updateOrCreate(
-        ['alias' => $name],
-        [
-            'landing_uuid' => $resolved['landing']->uuid,
-            'position' => $position,
-            'created_by_user_id' => (string) $bot->userId(),
-            'notes' => $notes,
-        ],
-    );
-
-    $bot->sendMessage(
-        "✅ Алиас <code>".htmlspecialchars($alias->alias)."</code> → ".htmlspecialchars($resolved['landing']->name)." (LP{$position})",
-        parse_mode: 'HTML',
-    );
-}
-
-function telegram_alias_rm(Nutgram $bot, array $args): void
-{
-    if ($args === []) {
-        $bot->sendMessage('Использование: /alias rm <name>');
-
-        return;
-    }
-    $name = $args[0];
-    $deleted = LandingAlias::query()->where('alias', $name)->delete();
-    $bot->sendMessage($deleted ? "🗑 Алиас {$name} удалён." : "Алиас {$name} не найден.");
-}
-
-function telegram_alias_list(Nutgram $bot): void
-{
-    $aliases = app(AliasResolver::class)->listAll();
-    if ($aliases->isEmpty()) {
-        $bot->sendMessage('Алиасов нет. /alias add <name> <id>');
-
-        return;
-    }
-
-    $lines = ['<b>Алиасы:</b>'];
-    foreach ($aliases as $a) {
-        $name = htmlspecialchars((string) $a->landing?->name ?: $a->landing_uuid, ENT_QUOTES);
-        $lines[] = "• <code>{$a->alias}</code> → {$name} (LP{$a->position})";
-    }
-    $bot->sendMessage(implode("\n", $lines), parse_mode: 'HTML');
-}
-
-function telegram_run_ai(Nutgram $bot, string $question): void
-{
-    $userId = (string) $bot->userId();
-    if (! app(AiRateLimiter::class)->attempt($userId)) {
-        $bot->sendMessage('⏳ Слишком много запросов. Попробуй чуть позже.');
-
-        return;
-    }
-
-    try {
-        $reply = app(AiHandler::class)->handle($question);
-        if ($reply === '') {
-            $bot->sendMessage('<i>Пустой ответ.</i>', parse_mode: 'HTML');
-
-            return;
-        }
-
-        $bot->sendMessage($reply, parse_mode: 'HTML', disable_web_page_preview: true);
-    } catch (\Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-}

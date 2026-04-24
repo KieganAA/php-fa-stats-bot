@@ -6,6 +6,8 @@ use App\Services\Aio\AioClient;
 use App\Services\Aio\Http\AioHttpClient;
 use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\MetricResolver;
+use App\Services\Aio\Pivot\MvtSlicer;
+use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Aio\Support\RateLimiter;
 use App\Services\Aio\Support\ResponseCache;
 use Illuminate\Contracts\Foundation\Application;
@@ -63,6 +65,16 @@ class AioServiceProvider extends ServiceProvider
 
         $this->app->singleton(LandingReports::class, fn (Application $app) => new LandingReports(
             $app->make(AioClient::class),
+        ));
+
+        $this->app->singleton(TargetMetricSet::class, fn (Application $app) => new TargetMetricSet(
+            $app->make(MetricResolver::class),
+            (array) $app['config']->get('aio.target_metrics', []),
+        ));
+
+        $this->app->singleton(MvtSlicer::class, fn (Application $app) => new MvtSlicer(
+            $app->make(LandingReports::class),
+            $app->make(TargetMetricSet::class),
         ));
     }
 }

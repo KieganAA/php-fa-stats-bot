@@ -12,3 +12,8 @@ Schedule::command('aio:sync:all')
     ->hourly()
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('mvt:slice', ['--broadcast'])
+    ->cron('0 */3 * * *')
+    ->withoutOverlapping()
+    ->runInBackground();

@@ -30,4 +30,19 @@ return [
 
     'redis_connection' => env('AIO_REDIS_CONNECTION', 'default'),
 
+    /*
+    | Target metrics for landing/MVT reports. Map a stable slug to the
+    | exact metric `name` in `aio_metrics` (case-insensitive match).
+    | Order here is the order they appear in formatted reports.
+    */
+    'target_metrics' => [
+        'clicks' => 'LP1 Clicks',
+        'lp_ctr' => 'Q LP1 CTR',
+        'leads' => 'Leads',
+        'ftds_real' => 'FTDs',
+        'real_cr' => 'LP1  CR%',
+        'interest_rate' => 'LP1 Interest Rate',
+        'scrolling' => 'Q LP1 Scroll Avg',
+    ],
+
 ];

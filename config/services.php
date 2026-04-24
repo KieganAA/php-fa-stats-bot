@@ -52,6 +52,10 @@ return [
         ))),
         'webhook_url' => env('TELEGRAM_WEBHOOK_URL'),
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+        'report_chat_ids' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('TELEGRAM_REPORT_CHAT_IDS', ''))
+        ))),
     ],
 
 ];

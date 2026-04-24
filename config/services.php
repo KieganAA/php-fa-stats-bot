@@ -39,6 +39,9 @@ return [
         'api_key' => env('ANTHROPIC_API_KEY'),
         'model' => env('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
         'max_tokens' => (int) env('ANTHROPIC_MAX_TOKENS', 1024),
+        'timeout' => (int) env('ANTHROPIC_TIMEOUT_SECONDS', 60),
+        'rate_limit' => (int) env('ANTHROPIC_RATE_LIMIT', 30),
+        'rate_window_seconds' => (int) env('ANTHROPIC_RATE_WINDOW_SECONDS', 3600),
     ],
 
     'telegram' => [

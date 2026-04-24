@@ -3,6 +3,8 @@
 /** @var Nutgram $bot */
 
 use App\Models\LandingAlias;
+use App\Services\Ai\AiHandler;
+use App\Services\Ai\AiRateLimiter;
 use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Stats\AliasResolver;
@@ -44,6 +46,7 @@ $bot->onCommand('start', function (Nutgram $bot) {
         "/alias add <name> <id> [pos] — привязать алиас\n".
         "/alias list — список алиасов\n".
         "/alias rm <name> — удалить алиас\n".
+        "/ai <вопрос> — свободный запрос (Claude Haiku)\n".
         "/ping — проверка связи\n".
         "/help — справка\n\n".
         'Период: today (по умолчанию), yesterday, 7d, 24h, week, month.'
@@ -59,7 +62,8 @@ $bot->onCommand('help', function (Nutgram $bot) {
         "Команды:\n".
         "/stats <alias> [период]\n".
         "/compare <alias…> [период]\n".
-        "/alias add|list|rm\n\n".
+        "/alias add|list|rm\n".
+        "/ai <вопрос> — свободный запрос\n\n".
         'Период: today | yesterday | 7d | 24h | week | month.'
     );
 })->description('Справка');
@@ -180,6 +184,19 @@ $bot->onCommand('compare', function (Nutgram $bot) {
     }
 })->description('Сравнить лендинги');
 
+$bot->onCommand('ai', function (Nutgram $bot) {
+    $text = (string) ($bot->message()?->text ?? '');
+    $question = trim((string) preg_replace('/^\/ai(@\S+)?\s*/u', '', $text));
+
+    if ($question === '') {
+        $bot->sendMessage('Использование: /ai <вопрос>');
+
+        return;
+    }
+
+    telegram_run_ai($bot, $question);
+})->description('Свободный запрос (AI)');
+
 $bot->fallback(function (Nutgram $bot) {
     $bot->sendMessage('Не понял. /help — список команд.');
 });
@@ -282,4 +299,27 @@ function telegram_alias_list(Nutgram $bot): void
         $lines[] = "• <code>{$a->alias}</code> → {$name} (LP{$a->position})";
     }
     $bot->sendMessage(implode("\n", $lines), parse_mode: 'HTML');
+}
+
+function telegram_run_ai(Nutgram $bot, string $question): void
+{
+    $userId = (string) $bot->userId();
+    if (! app(AiRateLimiter::class)->attempt($userId)) {
+        $bot->sendMessage('⏳ Слишком много запросов. Попробуй чуть позже.');
+
+        return;
+    }
+
+    try {
+        $reply = app(AiHandler::class)->handle($question);
+        if ($reply === '') {
+            $bot->sendMessage('<i>Пустой ответ.</i>', parse_mode: 'HTML');
+
+            return;
+        }
+
+        $bot->sendMessage($reply, parse_mode: 'HTML', disable_web_page_preview: true);
+    } catch (\Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
 }

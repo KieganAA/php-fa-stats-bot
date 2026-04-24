@@ -122,14 +122,14 @@ docker compose exec app php artisan nutgram:register-commands
 ## Roadmap (фазы)
 
 - [x] **0** — Каркас: Laravel + FrankenPHP + Docker + webhook-заглушка
-- [ ] **1** — AIO-клиент с Redis-кэшем, rate-limit, concurrency-limit
-- [ ] **2** — Алиасы лендингов (`/alias add/list/remove`), БД-схема
-- [ ] **3** — `/stats <alias> [период]` — основной юзкейс
+- [x] **1** — AIO-клиент с Redis-кэшем, rate-limit, concurrency-limit
+- [x] **2** — Алиасы лендингов (`/alias add/list/remove`), БД-схема
+- [x] **3** — `/stats <alias> [период]` — основной юзкейс
 - [ ] **4** — `/bind`, `/subscribe`, планировщик 3h, снэпшоты MVT
-- [ ] **5** — `/compare <alias1> <alias2> [...] [период]`
-- [ ] **6** — AI-режим через Claude tool use
-- [ ] **7** — Rate-limit, health-checks, прод-готовность
-- [ ] **8** — `DEPLOY.md` для OpenClaw
+- [x] **5** — `/compare <alias1> <alias2> [...] [период]`
+- [x] **6** — AI-режим через Claude tool use
+- [x] **7** — Rate-limit, health-checks, прод-готовность
+- [x] **8** — [`DEPLOY.md`](DEPLOY.md) — деплой на VPS
 
 ## Повседневные команды
 
@@ -164,7 +164,7 @@ docker compose down -v
 
 ## Деплой
 
-Планируется через OpenClaw. Инструкция появится в `DEPLOY.md` в фазе 8. Контейнеры уже подготовлены под любой оркестратор — достаточно собрать образ, прокинуть переменные окружения из `.env.example` и поднять `app` + `worker` + `scheduler` + внешние `postgres` + `redis`.
+См. [`DEPLOY.md`](DEPLOY.md) — generic Docker-Compose-on-VPS гайд: TLS (FrankenPHP сам или через прокси), регистрация webhook, обновление, бэкапы, troubleshooting.
 
 ## Лицензия
 

@@ -67,27 +67,38 @@ class AioHttpClientTest extends TestCase
         $this->app->make(AioHttpClient::class)->get('api/v1/data/landings');
     }
 
-    public function test_pivot_report_sends_wrapped_request_body(): void
+    public function test_pivot_report_sends_flat_body(): void
     {
         Http::fake([
             'app.aio.test/api/v1/pivot-report/data*' => Http::response([
-                '{"group_1":"DK"}' => ['placeholders' => ['m1' => 42]],
+                'DK' => [
+                    'group_0' => 'DK',
+                    'uuid-metric-abc' => 42,
+                ],
             ]),
         ]);
 
         $pivot = $this->app->make(AioClient::class)->pivotReport([
-            'main' => 'LandingActivations',
-            'groupers' => ['group_1' => 'location_country_code'],
+            'dates' => ['2026-04-01 00:00:00', '2026-04-07 23:59:59', 'Europe/Berlin'],
+            'back_fix_attribution' => false,
+            'event_time_attribution' => false,
+            'hide_bots' => true,
+            'hide_empty_metrics' => true,
+            'hide_trash' => true,
+            'conditions' => [],
+            'definitions' => [['key' => 'location_country_code']],
         ], heavy: false);
 
         $this->assertCount(1, $pivot->rows);
-        $this->assertSame(['group_1' => 'DK'], $pivot->rows[0]['dimensions']);
+        $this->assertSame(['group_0' => 'DK'], $pivot->rows[0]['dimensions']);
+        $this->assertSame(['uuid-metric-abc' => 42], $pivot->rows[0]['metrics']);
 
         Http::assertSent(function ($request) {
             $decoded = json_decode($request->body(), true);
 
-            return isset($decoded['request']['main'])
-                && $decoded['request']['main'] === 'LandingActivations';
+            return ! isset($decoded['request'])
+                && ($decoded['definitions'][0]['key'] ?? null) === 'location_country_code'
+                && ($decoded['hide_bots'] ?? null) === true;
         });
     }
 }

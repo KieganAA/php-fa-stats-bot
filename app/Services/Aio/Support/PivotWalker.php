@@ -5,52 +5,68 @@ namespace App\Services\Aio\Support;
 /**
  * Flattens nested Pivot Report responses into flat rows.
  *
- * AIO returns groups keyed by JSON strings like '{"group_1":"uuid-or-scalar"}'.
- * Leaf groups carry `placeholders: {metric_uuid: value}`. This walker descends
- * the tree, collects group dimensions along the path, and emits one row per leaf.
+ * AIO returns a tree keyed by dimension values (e.g. "DK", or a landing UUID).
+ * Every sub-object that carries metrics **echoes the full `group_N` path** at
+ * that level as scalar siblings:
+ *
+ *   [ "<landing_uuid>" => [
+ *       "group_0" => "<landing_uuid>",
+ *       "group_1" => "",                  // aggregate row for this landing
+ *       "<uuid-metric-a>" => <landing_total>,
+ *       "KH" => [
+ *           "group_0" => "<landing_uuid>",
+ *           "group_1" => "KH",
+ *           "<uuid-metric-a>" => <kh_value>,
+ *       ],
+ *   ] ]
+ *
+ * So each node is self-describing: its dimensions are every `group_N` scalar
+ * sibling; its metrics are the remaining scalar siblings; its nested array
+ * values are children to recurse into.
  */
 class PivotWalker
 {
     /**
-     * @return array<int, array{dimensions: array<string, mixed>, metrics: array<string, mixed>}>
+     * @return array<int, array{dimensions: array<string,string>, metrics: array<string,int|float>}>
      */
     public static function flatten(array $pivot): array
     {
         $rows = [];
-        self::walk($pivot, [], $rows);
+        self::walk($pivot, $rows);
 
         return $rows;
     }
 
-    private static function walk(array $node, array $dimensions, array &$rows): void
+    /**
+     * @param  array<int, array{dimensions: array<string,string>, metrics: array<string,int|float>}>  $rows
+     */
+    private static function walk(array $node, array &$rows): void
     {
-        if (isset($node['placeholders']) && is_array($node['placeholders'])) {
-            $rows[] = [
-                'dimensions' => $dimensions,
-                'metrics' => $node['placeholders'],
-            ];
+        $dimensions = [];
+        $metrics = [];
+        $children = [];
+
+        foreach ($node as $k => $v) {
+            if (is_array($v)) {
+                $children[$k] = $v;
+            } elseif (is_string($k) && self::isGroupMarker($k)) {
+                $dimensions[$k] = (string) $v;
+            } else {
+                $metrics[(string) $k] = $v;
+            }
         }
 
-        foreach ($node as $key => $value) {
-            if (! is_array($value) || ! self::looksLikeGroupKey($key)) {
-                continue;
-            }
+        if ($metrics !== []) {
+            $rows[] = ['dimensions' => $dimensions, 'metrics' => $metrics];
+        }
 
-            $decoded = json_decode($key, true);
-            $nextDims = $dimensions;
-
-            if (is_array($decoded)) {
-                foreach ($decoded as $dimName => $dimValue) {
-                    $nextDims[$dimName] = $dimValue;
-                }
-            }
-
-            self::walk($value, $nextDims, $rows);
+        foreach ($children as $child) {
+            self::walk($child, $rows);
         }
     }
 
-    private static function looksLikeGroupKey(string $key): bool
+    private static function isGroupMarker(string $key): bool
     {
-        return $key !== '' && $key[0] === '{';
+        return (bool) preg_match('/^group_\d+$/', $key);
     }
 }

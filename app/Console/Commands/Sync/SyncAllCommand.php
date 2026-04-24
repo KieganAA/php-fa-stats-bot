@@ -6,6 +6,7 @@ use App\Services\Aio\Exceptions\AioException;
 use App\Services\Aio\Sync\FieldSyncer;
 use App\Services\Aio\Sync\LandingSyncer;
 use App\Services\Aio\Sync\LandingTypeSyncer;
+use App\Services\Aio\Sync\MetricSyncer;
 use App\Services\Aio\Sync\UserSyncer;
 use Illuminate\Console\Command;
 use Throwable;
@@ -20,12 +21,14 @@ class SyncAllCommand extends Command
         LandingTypeSyncer $types,
         UserSyncer $users,
         FieldSyncer $fields,
+        MetricSyncer $metrics,
         LandingSyncer $landings,
     ): int {
         $jobs = [
             'landing-types' => fn () => $types->sync(),
             'users' => fn () => $users->sync(),
             'fields' => fn () => $fields->sync(),
+            'metrics' => fn () => $metrics->sync(),
             'landings' => fn () => $landings->sync(),
         ];
 

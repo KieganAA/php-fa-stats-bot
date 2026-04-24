@@ -5,6 +5,7 @@ namespace App\Services\Aio;
 use App\Services\Aio\Dto\Field;
 use App\Services\Aio\Dto\Landing;
 use App\Services\Aio\Dto\LandingType;
+use App\Services\Aio\Dto\Metric;
 use App\Services\Aio\Dto\PivotResponse;
 use App\Services\Aio\Dto\User;
 use App\Services\Aio\Http\AioHttpClient;
@@ -71,6 +72,14 @@ class AioClient
         }
     }
 
+    /** @return Generator<int, Metric> */
+    public function streamMetrics(int $limit = 100): Generator
+    {
+        foreach ($this->streamTable('Settings\\Metrics', $limit) as $row) {
+            yield Metric::fromArray($row);
+        }
+    }
+
     /** @return array<int, Landing> */
     public function listLandings(int $limit = 100): array
     {
@@ -95,6 +104,12 @@ class AioClient
         return iterator_to_array($this->streamFields($limit), false);
     }
 
+    /** @return array<int, Metric> */
+    public function listMetrics(int $limit = 100): array
+    {
+        return iterator_to_array($this->streamMetrics($limit), false);
+    }
+
     public function runLanderCreateAction(array $uuids): array
     {
         return $this->http->post('api/v1/actions/data', [
@@ -105,14 +120,16 @@ class AioClient
     }
 
     /**
-     * POST /api/v1/pivot-report/data with the wrapped request body.
+     * POST /api/v1/pivot-report/data — body is flat per AIO docs:
+     * {dates, back_fix_attribution, event_time_attribution, hide_bots,
+     *  hide_empty_metrics, hide_trash, conditions[], definitions[]}.
      * Pass $heavy=true for wide/long-window reports.
      */
-    public function pivotReport(array $request, bool $heavy = true, ?int $cacheTtl = null): PivotResponse
+    public function pivotReport(array $body, bool $heavy = true, ?int $cacheTtl = null): PivotResponse
     {
         $response = $this->http->post(
             'api/v1/pivot-report/data',
-            ['request' => $request],
+            $body,
             cacheTtl: $cacheTtl,
             heavy: $heavy,
         );

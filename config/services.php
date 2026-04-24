@@ -35,14 +35,6 @@ return [
         ],
     ],
 
-    'aio' => [
-        'base_url' => env('AIO_BASE_URL', 'https://app.aio.tech'),
-        'token' => env('AIO_TOKEN'),
-        'rate_limit_per_minute' => (int) env('AIO_RATE_LIMIT_PER_MINUTE', 60),
-        'concurrency_limit' => (int) env('AIO_CONCURRENCY_LIMIT', 3),
-        'heavy_budget_seconds' => (int) env('AIO_HEAVY_BUDGET_SECONDS', 20),
-    ],
-
     'anthropic' => [
         'api_key' => env('ANTHROPIC_API_KEY'),
         'model' => env('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),

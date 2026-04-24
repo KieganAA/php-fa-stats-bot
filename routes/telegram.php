@@ -1,5 +1,6 @@
 <?php
-/** @var SergiX44\Nutgram\Nutgram $bot */
+
+/** @var Nutgram $bot */
 
 use SergiX44\Nutgram\Nutgram;
 
@@ -34,7 +35,7 @@ $bot->onCommand('start', function (Nutgram $bot) {
         "Доступные команды:\n".
         "/ping — проверка связи\n".
         "/help — справка (пока такая же)\n\n".
-        "В следующих фазах добавится /stats, /bind, /compare и AI-режим."
+        'В следующих фазах добавится /stats, /bind, /compare и AI-режим.'
     );
 })->description('Стартовое сообщение');
 
@@ -46,11 +47,11 @@ $bot->onCommand('help', function (Nutgram $bot) {
     $bot->sendMessage(
         "Справка:\n".
         "/start — приветствие\n".
-        "/ping — проверка связи"
+        '/ping — проверка связи'
     );
 })->description('Справка');
 
 // Fallback for anything unhandled during Phase 0.
 $bot->fallback(function (Nutgram $bot) {
-    $bot->sendMessage("Пока не умею отвечать на это. Попробуй /start.");
+    $bot->sendMessage('Пока не умею отвечать на это. Попробуй /start.');
 });

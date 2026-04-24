@@ -13,6 +13,28 @@ use Generator;
 
 class AioClient
 {
+    /**
+     * Defaults required by AIO's POST /api/v1/tables/data body — server rejects
+     * or returns empty without them. Keep the shape exactly as the web app sends.
+     */
+    private const TABLE_REQUEST_DEFAULTS = [
+        'search' => '',
+        'sort_key' => '',
+        'sort_direction' => 'asc',
+        'analytics_position' => 1,
+        'filters' => [],
+        'dates' => [],
+        'hide_empty_metrics' => false,
+        'hide_bots' => true,
+        'unwrap_tree' => false,
+        'hide_trash' => true,
+        'event_time_attribution' => false,
+        'back_fix_attribution' => false,
+        'metric_filters' => [],
+        'metric_definition' => null,
+        'metric_definitions' => [],
+    ];
+
     public function __construct(
         private readonly AioHttpClient $http,
     ) {}
@@ -42,7 +64,7 @@ class AioClient
     }
 
     /** @return Generator<int, Field> */
-    public function streamFields(int $limit = 200): Generator
+    public function streamFields(int $limit = 100): Generator
     {
         foreach ($this->streamTable('Settings\\Fields', $limit) as $row) {
             yield Field::fromArray($row);
@@ -68,7 +90,7 @@ class AioClient
     }
 
     /** @return array<int, Field> */
-    public function listFields(int $limit = 200): array
+    public function listFields(int $limit = 100): array
     {
         return iterator_to_array($this->streamFields($limit), false);
     }
@@ -99,47 +121,50 @@ class AioClient
     }
 
     /**
-     * POST /api/v1/tables/data with `{request: {TableName: filters}}`.
+     * POST /api/v1/tables/data — walks pages of `rows` from the wrapped response.
      *
-     * @return array<int, array<string, mixed>>
+     * @return Generator<int, array<string, mixed>>
      */
-    public function queryTable(string $table, array $filters = [], int $limit = 100): array
+    private function streamTable(string $table, int $limit, array $extraRequest = []): Generator
     {
-        $rows = [];
+        $capped = $this->capLimit($limit);
 
-        foreach (Paginator::iterate(
-            fn (int $page) => $this->http->post('api/v1/tables/data', [
-                'request' => [
-                    $table => array_merge(['page' => $page, 'limit' => $limit], $filters),
-                ],
-            ]),
-            limit: $limit,
-        ) as $row) {
-            $rows[] = $row;
-        }
-
-        return $rows;
-    }
-
-    /** @return Generator<int, array<string, mixed>> */
-    private function streamTable(string $table, int $limit): Generator
-    {
         yield from Paginator::iterate(
-            fn (int $page) => $this->http->post('api/v1/tables/data', [
-                'request' => [
-                    $table => ['page' => $page, 'limit' => $limit],
-                ],
-            ]),
-            limit: $limit,
+            fetcher: function (int $page, int $limitArg) use ($table, $extraRequest) {
+                $response = $this->http->post('api/v1/tables/data', [
+                    'request' => [
+                        $table => array_merge(
+                            ['table' => $table, 'page' => $page, 'limit' => $limitArg],
+                            self::TABLE_REQUEST_DEFAULTS,
+                            $extraRequest,
+                        ),
+                    ],
+                ]);
+
+                $inner = $response[$table]['response'] ?? [];
+
+                return [
+                    'rows' => $inner['rows'] ?? [],
+                    'next' => (bool) ($inner['next'] ?? false),
+                ];
+            },
+            limit: $capped,
         );
     }
 
     /** @return Generator<int, array<string, mixed>> */
     private function streamList(string $path, int $limit): Generator
     {
+        $capped = $this->capLimit($limit);
+
         yield from Paginator::iterate(
-            fn (int $page) => $this->http->get($path, ['page' => $page, 'limit' => $limit]),
-            limit: $limit,
+            fn (int $page) => $this->http->get($path, ['page' => $page, 'limit' => $capped]),
+            limit: $capped,
         );
+    }
+
+    private function capLimit(int $limit): int
+    {
+        return max(1, min($limit, 100));
     }
 }

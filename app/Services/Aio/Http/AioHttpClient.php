@@ -5,6 +5,7 @@ namespace App\Services\Aio\Http;
 use App\Services\Aio\Exceptions\UpstreamException;
 use App\Services\Aio\Support\RateLimiter;
 use App\Services\Aio\Support\ResponseCache;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -39,6 +40,10 @@ class AioHttpClient
         return $this->send('POST', $path, [], $body, $cacheTtl, $heavy);
     }
 
+    private const THROTTLE_RETRIES = 4;
+
+    private const THROTTLE_BACKOFF_MS = [1_000, 2_500, 5_000, 10_000];
+
     /**
      * @param  array<string, mixed>  $query
      * @param  array<string, mixed>  $body
@@ -54,36 +59,66 @@ class AioHttpClient
             }
         }
 
-        if ($heavy) {
-            $this->limiter->assertHeavyBudget();
-        }
-        $this->limiter->acquireRpm();
-        $this->limiter->acquireConcurrency();
+        $attempt = 0;
 
-        $startedMs = (int) (microtime(true) * 1000);
-
-        try {
-            $response = $this->request($method, $path, $query, $body);
-            $durationMs = (int) (microtime(true) * 1000) - $startedMs;
-
+        while (true) {
             if ($heavy) {
-                $this->limiter->recordHeavyDuration($durationMs);
+                $this->limiter->assertHeavyBudget();
             }
+            $this->limiter->acquireRpm();
+            $this->limiter->acquireConcurrency();
 
-            if ($response->failed()) {
-                throw new UpstreamException($response->status(), (string) $response->body());
+            $startedMs = (int) (microtime(true) * 1000);
+
+            try {
+                $response = $this->request($method, $path, $query, $body);
+                $durationMs = (int) (microtime(true) * 1000) - $startedMs;
+
+                if ($heavy) {
+                    $this->limiter->recordHeavyDuration($durationMs);
+                }
+
+                if ($this->isThrottled($response) && $attempt < self::THROTTLE_RETRIES) {
+                    $wait = self::THROTTLE_BACKOFF_MS[$attempt] ?? 10_000;
+                    Log::warning('aio.throttled', ['attempt' => $attempt + 1, 'wait_ms' => $wait, 'path' => $path]);
+                    $attempt++;
+                    continue;
+                }
+
+                if ($response->failed()) {
+                    throw new UpstreamException($response->status(), (string) $response->body());
+                }
+
+                $data = $response->json() ?? [];
+
+                if ($cacheTtl !== 0 && $cacheTtl !== null) {
+                    $this->cache->put($fingerprint, $data, $cacheTtl);
+                }
+
+                return $data;
+            } finally {
+                $this->limiter->releaseConcurrency();
+
+                if (isset($wait)) {
+                    usleep($wait * 1000);
+                    unset($wait);
+                }
             }
-
-            $data = $response->json() ?? [];
-
-            if ($cacheTtl !== 0 && $cacheTtl !== null) {
-                $this->cache->put($fingerprint, $data, $cacheTtl);
-            }
-
-            return $data;
-        } finally {
-            $this->limiter->releaseConcurrency();
         }
+    }
+
+    private function isThrottled(Response $response): bool
+    {
+        if ($response->status() === 429) {
+            return true;
+        }
+
+        if ($response->status() >= 500) {
+            return str_contains((string) $response->body(), 'Too Many Attempts')
+                || str_contains((string) $response->body(), 'ThrottleRequestsException');
+        }
+
+        return false;
     }
 
     private function request(string $method, string $path, array $query, array $body): Response
@@ -118,6 +153,7 @@ class AioHttpClient
         return Http::withHeaders($headers)
             ->timeout($this->timeout)
             ->connectTimeout($this->connectTimeout)
+            ->retry(3, 500, fn (\Throwable $e) => $e instanceof ConnectionException, throw: false)
             ->acceptJson();
     }
 }

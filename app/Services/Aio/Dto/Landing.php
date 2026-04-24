@@ -4,29 +4,38 @@ namespace App\Services\Aio\Dto;
 
 class Landing
 {
-    /**
-     * @param  array<int, string>  $mvtKeys  Keys from mvt_settings (lp_*) when landing is MVT parent.
-     */
     public function __construct(
         public readonly string $uuid,
+        public readonly ?int $humanId,
         public readonly string $name,
-        public readonly ?string $typeUuid,
-        public readonly ?string $userUuid,
-        public readonly array $mvtKeys,
+        public readonly ?string $landingTypeUuid,
+        public readonly ?string $landingTypeName,
+        public readonly ?string $ownerUuid,
+        public readonly ?string $ownerName,
+        /** @var array<int, string> */
+        public readonly array $countries,
+        public readonly bool $isArchived,
+        public readonly ?int $aioCreatedAt,
         public readonly array $raw,
     ) {}
 
     public static function fromArray(array $row): self
     {
-        $mvtSettings = $row['mvt_settings'] ?? null;
-        $mvtKeys = is_array($mvtSettings) ? array_keys($mvtSettings) : [];
+        $type = $row['landing_type'] ?? [];
+        $owner = $row['owner'] ?? [];
+        $createdAt = $row['created_at']['timestamp'] ?? null;
 
         return new self(
             uuid: (string) ($row['uuid'] ?? ''),
+            humanId: isset($row['human_id']) ? (int) $row['human_id'] : null,
             name: (string) ($row['name'] ?? ''),
-            typeUuid: isset($row['landing_type_uuid']) ? (string) $row['landing_type_uuid'] : null,
-            userUuid: isset($row['user_uuid']) ? (string) $row['user_uuid'] : null,
-            mvtKeys: $mvtKeys,
+            landingTypeUuid: isset($type['uuid']) ? (string) $type['uuid'] : null,
+            landingTypeName: isset($type['name']) ? (string) $type['name'] : null,
+            ownerUuid: isset($owner['uuid']) ? (string) $owner['uuid'] : null,
+            ownerName: isset($owner['name']) ? (string) $owner['name'] : null,
+            countries: array_values(array_map('strval', $row['countries'] ?? [])),
+            isArchived: (bool) ($row['is_archived'] ?? false),
+            aioCreatedAt: $createdAt !== null ? (int) $createdAt : null,
             raw: $row,
         );
     }

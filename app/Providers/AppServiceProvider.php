@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\Ai\AiRateLimiter;
 use App\Services\Ai\ClaudeClient;
 use App\Services\Auth\AppContext;
+use App\Services\Auth\TelegramInitDataVerifier;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Octane\Events\RequestReceived;
@@ -33,6 +34,11 @@ class AppServiceProvider extends ServiceProvider
         // between Octane requests so a long-running worker doesn't leak the
         // previous request's user into the next one.
         $this->app->singleton(AppContext::class);
+
+        $this->app->singleton(TelegramInitDataVerifier::class, fn (Application $app) => new TelegramInitDataVerifier(
+            botToken: (string) $app['config']->get('services.telegram.token', ''),
+            maxAgeSeconds: (int) $app['config']->get('services.telegram.init_data_max_age', 86400),
+        ));
     }
 
     /**

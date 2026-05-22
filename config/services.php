@@ -45,6 +45,8 @@ return [
     ],
 
     'telegram' => [
+        'token' => env('TELEGRAM_TOKEN', ''),
+        'init_data_max_age' => (int) env('TELEGRAM_INIT_DATA_MAX_AGE', 86400),
         'allowed_user_ids' => array_values(array_filter(array_map(
             'trim',
             explode(',', (string) env('TELEGRAM_ALLOWED_USER_IDS', ''))

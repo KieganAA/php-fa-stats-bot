@@ -1,6 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\CompareController;
+use App\Http\Controllers\Api\GroupsController;
 use App\Http\Controllers\Api\MeController;
+use App\Http\Controllers\Api\MvtController;
+use App\Http\Controllers\Api\RankingsController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\MiniAppController;
@@ -31,8 +35,19 @@ Route::get('/app', MiniAppController::class)->name('miniapp');
 Route::middleware(VerifyTelegramInitData::class)
     ->prefix('api/v1')
     ->group(function () {
+        // Profile / settings
         Route::get('me', [MeController::class, 'show']);
         Route::patch('me', [MeController::class, 'update']);
 
+        // Numbers
         Route::get('stats', [StatsController::class, 'show']);
+        Route::get('compare', [CompareController::class, 'show']);
+        Route::get('rankings', [RankingsController::class, 'show']);
+        Route::get('mvt', [MvtController::class, 'show']);
+
+        // Persistent tracking groups
+        Route::get('groups', [GroupsController::class, 'index']);
+        Route::post('groups', [GroupsController::class, 'store']);
+        Route::patch('groups/{group}', [GroupsController::class, 'update']);
+        Route::delete('groups/{group}', [GroupsController::class, 'destroy']);
     });

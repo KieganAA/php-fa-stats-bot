@@ -45,8 +45,23 @@ async function request(method, path, { query, body } = {}) {
 }
 
 export const api = {
+    // Profile / settings
     me: () => request('GET', '/me'),
     updateMe: (body) => request('PATCH', '/me', { body }),
+
+    // Numbers
     stats: (primitive, period) =>
         request('GET', '/stats', { query: { primitive, period } }),
+    compare: (primitives, period) =>
+        request('GET', '/compare', { query: { primitives: primitives.join(','), period } }),
+    rankings: (kind, period, topN) =>
+        request('GET', '/rankings', { query: { kind, period, top_n: topN } }),
+    mvt: (primitive, period) =>
+        request('GET', '/mvt', { query: { primitive, period } }),
+
+    // Tracking groups
+    listGroups: () => request('GET', '/groups'),
+    createGroup: (body) => request('POST', '/groups', { body }),
+    updateGroup: (id, body) => request('PATCH', `/groups/${id}`, { body }),
+    deleteGroup: (id) => request('DELETE', `/groups/${id}`),
 };

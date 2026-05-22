@@ -37,13 +37,13 @@ class ToolCatalog
         return [
             [
                 'name' => 'stats',
-                'description' => 'Get totals for an AIO primitive (currently: 2-letter country code like DK, BR, IT, US). Call this whenever the user asks about a country slice of the data.',
+                'description' => 'Get totals for an AIO slice. Call whenever the user asks about a country, a specific landing (by numeric ID), or its UUID.',
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
                         'primitive' => [
                             'type' => 'string',
-                            'description' => 'Country code (ISO alpha-2, case-insensitive). E.g. DK, BR, IT, US, RU.',
+                            'description' => 'One of: 2-letter country code (DK, BR, IT, US), numeric landing human_id (33169, 205228), or full landing UUID.',
                         ],
                         'period' => [
                             'type' => 'string',

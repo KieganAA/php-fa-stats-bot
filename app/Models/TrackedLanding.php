@@ -38,6 +38,16 @@ class TrackedLanding extends Model
         return $this->hasMany(MvtSlice::class);
     }
 
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(LandingSnapshot::class);
+    }
+
+    public function bindings(): HasMany
+    {
+        return $this->hasMany(UserLandingBinding::class);
+    }
+
     public function isActive(): bool
     {
         return $this->paused_at === null;

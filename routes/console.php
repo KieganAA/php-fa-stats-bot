@@ -17,3 +17,9 @@ Schedule::command('mvt:slice', ['--broadcast'])
     ->cron('0 */3 * * *')
     ->withoutOverlapping()
     ->runInBackground();
+
+// Aggregate snapshots fan out to per-user notifications via the redis queue.
+Schedule::command('tracking:snapshot')
+    ->cron('0 */3 * * *')
+    ->withoutOverlapping()
+    ->runInBackground();

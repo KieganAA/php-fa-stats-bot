@@ -50,6 +50,11 @@ class User extends Authenticatable
         return $this->hasMany(LandingAlias::class, 'created_by_id');
     }
 
+    public function bindings(): HasMany
+    {
+        return $this->hasMany(UserLandingBinding::class);
+    }
+
     public function displayName(): string
     {
         if ($this->telegram_username) {

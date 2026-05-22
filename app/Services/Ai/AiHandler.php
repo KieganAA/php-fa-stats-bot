@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Services\Auth\AppContext;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -29,6 +30,7 @@ PROMPT;
     public function __construct(
         private readonly ClaudeClient $client,
         private readonly ToolCatalog $catalog,
+        private readonly AppContext $context,
     ) {}
 
     /**
@@ -42,10 +44,18 @@ PROMPT;
             ['role' => 'user', 'content' => $userMessage],
         ];
 
+        // Per-user key/model override (empty falls through to the env default
+        // baked into the singleton).
+        $user = $this->context->user();
+        $client = $this->client->withOverrides(
+            apiKey: $user?->anthropic_api_key ?: null,
+            model: $user?->anthropic_model ?: null,
+        );
+
         $tools = $this->catalog->definitions();
 
         for ($i = 0; $i < self::MAX_ITERATIONS; $i++) {
-            $response = $this->client->messages(self::SYSTEM_PROMPT, $messages, $tools);
+            $response = $client->messages(self::SYSTEM_PROMPT, $messages, $tools);
 
             $messages[] = ['role' => 'assistant', 'content' => $response['content']];
 

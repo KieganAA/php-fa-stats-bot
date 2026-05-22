@@ -21,6 +21,21 @@ class ClaudeClient
     ) {}
 
     /**
+     * Return a clone with credential overrides — used to switch from the
+     * env-default Anthropic key to a user-specific one without mutating the
+     * shared singleton. Empty/null arguments leave the original value intact.
+     */
+    public function withOverrides(?string $apiKey = null, ?string $model = null): self
+    {
+        return new self(
+            apiKey: $apiKey !== null && $apiKey !== '' ? $apiKey : $this->apiKey,
+            model: $model !== null && $model !== '' ? $model : $this->model,
+            maxTokens: $this->maxTokens,
+            timeout: $this->timeout,
+        );
+    }
+
+    /**
      * @param  list<array{role: string, content: mixed}>  $messages
      * @param  list<array{name: string, description: string, input_schema: array<string, mixed>}>  $tools
      * @return array{

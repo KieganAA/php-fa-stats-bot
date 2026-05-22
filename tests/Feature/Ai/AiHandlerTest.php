@@ -5,6 +5,7 @@ namespace Tests\Feature\Ai;
 use App\Services\Ai\AiHandler;
 use App\Services\Ai\ClaudeClient;
 use App\Services\Ai\ToolCatalog;
+use App\Services\Auth\AppContext;
 use Illuminate\Support\Facades\Http;
 use Mockery;
 use RuntimeException;
@@ -28,7 +29,7 @@ class AiHandlerTest extends TestCase
         ]);
 
         $catalog = $this->emptyCatalog();
-        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog);
+        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog, new AppContext);
 
         $this->assertSame('привет', $handler->handle('hi'));
     }
@@ -63,7 +64,7 @@ class AiHandlerTest extends TestCase
             ]);
         });
 
-        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog);
+        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog, new AppContext);
 
         $this->assertSame('Вот они', $handler->handle('какие алиасы есть?'));
         $this->assertSame(2, $callCount);
@@ -110,7 +111,7 @@ class AiHandlerTest extends TestCase
             ]);
         });
 
-        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog);
+        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog, new AppContext);
         $this->assertSame('не нашёл', $handler->handle('по nope'));
 
         Http::assertSent(function ($req) {
@@ -141,10 +142,59 @@ class AiHandlerTest extends TestCase
             ]),
         ]);
 
-        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog);
+        $handler = new AiHandler(new ClaudeClient('sk', 'm', 100), $catalog, new AppContext);
         $reply = $handler->handle('loop');
 
         $this->assertStringContainsString('Слишком много шагов', $reply);
+    }
+
+    public function test_uses_per_user_anthropic_key_when_set(): void
+    {
+        $sentHeaders = [];
+        $sentBody = null;
+        Http::fake(function ($req) use (&$sentHeaders, &$sentBody) {
+            $sentHeaders = $req->headers();
+            $sentBody = json_decode($req->body(), true);
+
+            return Http::response([
+                'stop_reason' => 'end_turn',
+                'content' => [['type' => 'text', 'text' => 'ok']],
+            ]);
+        });
+
+        $user = new \App\Models\User;
+        $user->anthropic_api_key = 'sk-user-personal';
+        $user->anthropic_model = 'claude-opus-4-1';
+        $context = new AppContext;
+        $context->setUser($user);
+
+        $handler = new AiHandler(new ClaudeClient('sk-default', 'claude-haiku', 100), $this->emptyCatalog(), $context);
+        $handler->handle('hi');
+
+        $this->assertSame('sk-user-personal', $sentHeaders['x-api-key'][0] ?? null);
+        $this->assertSame('claude-opus-4-1', $sentBody['model'] ?? null);
+    }
+
+    public function test_falls_back_to_env_key_when_user_has_no_override(): void
+    {
+        $sentHeaders = [];
+        Http::fake(function ($req) use (&$sentHeaders) {
+            $sentHeaders = $req->headers();
+
+            return Http::response([
+                'stop_reason' => 'end_turn',
+                'content' => [['type' => 'text', 'text' => 'ok']],
+            ]);
+        });
+
+        $user = new \App\Models\User;  // no api key set
+        $context = new AppContext;
+        $context->setUser($user);
+
+        $handler = new AiHandler(new ClaudeClient('sk-default', 'claude-haiku', 100), $this->emptyCatalog(), $context);
+        $handler->handle('hi');
+
+        $this->assertSame('sk-default', $sentHeaders['x-api-key'][0] ?? null);
     }
 
     private function emptyCatalog(): ToolCatalog

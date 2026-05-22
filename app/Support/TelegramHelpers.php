@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\LandingAlias;
 use App\Services\Ai\AiHandler;
 use App\Services\Ai\AiRateLimiter;
+use App\Services\Auth\AppContext;
 use App\Services\Stats\AliasResolver;
 use App\Services\Stats\PeriodParser;
 use SergiX44\Nutgram\Nutgram;
@@ -79,7 +80,7 @@ final class TelegramHelpers
             [
                 'landing_uuid' => $resolved['landing']->uuid,
                 'position' => $position,
-                'created_by_user_id' => (string) $bot->userId(),
+                'created_by_id' => app(AppContext::class)->user()?->id,
                 'notes' => $notes,
             ],
         );
@@ -122,8 +123,11 @@ final class TelegramHelpers
 
     public static function runAi(Nutgram $bot, string $question): void
     {
-        $userId = (string) $bot->userId();
-        if (! app(AiRateLimiter::class)->attempt($userId)) {
+        // Prefer the internal user id (stable, immutable) over the raw
+        // telegram_user_id so a future identity migration doesn't reset
+        // anyone's rate-limit budget.
+        $subject = (string) (app(AppContext::class)->user()?->id ?? $bot->userId());
+        if (! app(AiRateLimiter::class)->attempt($subject)) {
             $bot->sendMessage('⏳ Слишком много запросов. Попробуй чуть позже.');
 
             return;

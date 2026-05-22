@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Services\Ai\AiRateLimiter;
 use App\Services\Ai\ClaudeClient;
+use App\Services\Auth\AppContext;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Octane\Events\RequestReceived;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +27,12 @@ class AppServiceProvider extends ServiceProvider
             limit: (int) $app['config']->get('services.anthropic.rate_limit', 30),
             windowSeconds: (int) $app['config']->get('services.anthropic.rate_window_seconds', 3600),
         ));
+
+        // Per-request slot for the resolved User. Singleton in non-Octane
+        // contexts (one request per process); the listener below resets it
+        // between Octane requests so a long-running worker doesn't leak the
+        // previous request's user into the next one.
+        $this->app->singleton(AppContext::class);
     }
 
     /**
@@ -32,6 +40,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Reset the per-request user slot between Octane requests. Outside of
+        // Octane this event never fires and the singleton just lives for the
+        // duration of a single request anyway.
+        $this->app['events']->listen(RequestReceived::class, function () {
+            $this->app->make(AppContext::class)->clear();
+        });
     }
 }

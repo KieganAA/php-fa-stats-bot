@@ -4,12 +4,33 @@
 
 use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
+use App\Services\Auth\AppContext;
+use App\Services\Auth\TelegramUserResolver;
 use App\Services\Stats\AliasResolver;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\StatsFormatter;
 use App\Support\TelegramHelpers as H;
 use Illuminate\Support\Facades\Redis;
 use SergiX44\Nutgram\Nutgram;
+
+// User-resolver middleware. Upserts a User row from the incoming TG identity
+// and parks it in AppContext for the rest of the pipeline. Runs before the
+// allowlist so even denied users get a row (useful for audit later).
+$bot->middleware(function (Nutgram $bot, callable $next) {
+    $tg = $bot->user();
+    if ($tg !== null) {
+        $user = app(TelegramUserResolver::class)->resolve([
+            'id' => $tg->id,
+            'username' => $tg->username ?? null,
+            'first_name' => $tg->first_name ?? null,
+            'last_name' => $tg->last_name ?? null,
+            'language_code' => $tg->language_code ?? null,
+        ]);
+        app(AppContext::class)->setUser($user);
+    }
+
+    return $next($bot);
+});
 
 // Allowlist middleware. User passes if their numeric id OR their username matches.
 // If BOTH lists are empty, everyone passes.

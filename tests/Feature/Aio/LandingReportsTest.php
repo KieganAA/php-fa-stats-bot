@@ -186,7 +186,7 @@ class LandingReportsTest extends TestCase
     {
         MetricModel::create([
             'uuid' => 'm-clicks',
-            'name' => 'LP1 Clicks',
+            'name' => 'Q Visits',
             'format' => 'Number',
             'type' => 'Formula',
             'description' => null,
@@ -201,9 +201,9 @@ class LandingReportsTest extends TestCase
             'unknown-uuid' => 99,
         ]);
 
-        $this->assertSame(123, $resolved['LP1 Clicks']);
+        $this->assertSame(123, $resolved['Q Visits']);
         $this->assertSame(99, $resolved['unknown-uuid']);
-        $this->assertSame('LP1 Clicks', $resolver->nameFor('m-clicks'));
-        $this->assertSame('m-clicks', $resolver->uuidFor('lp1 clicks'));
+        $this->assertSame('Q Visits', $resolver->nameFor('m-clicks'));
+        $this->assertSame('m-clicks', $resolver->uuidFor('q visits'));
     }
 }

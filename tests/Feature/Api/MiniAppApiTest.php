@@ -187,11 +187,11 @@ class MiniAppApiTest extends TestCase
     private function seedTargetMetrics(): void
     {
         foreach ([
-            'clicks-uuid' => 'LP1 Clicks',
+            'clicks-uuid' => 'Q Visits',
             'lp-ctr-uuid' => 'Q LP1 CTR',
             'leads-uuid' => 'Leads',
-            'ftds-real-uuid' => 'FTDs',
-            'real-cr-uuid' => 'LP1  CR%',
+            'ftds-real-uuid' => 'Total FTDs',
+            'real-cr-uuid' => 'Real Approve',
             'interest-rate-uuid' => 'LP1 Interest Rate',
             'scrolling-uuid' => 'Q LP1 Scroll Avg',
         ] as $uuid => $name) {

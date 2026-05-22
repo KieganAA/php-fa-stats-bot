@@ -67,7 +67,9 @@ class StatsFormatterTest extends TestCase
         $this->assertStringContainsString('clicks', $html);
         $this->assertStringContainsString('100', $html);
         $this->assertStringContainsString('LP CTR', $html);
-        $this->assertStringContainsString('0.46', $html);
+        // 0.4567 ratio → "45.67%"
+        $this->assertStringContainsString('45.67%', $html);
+        // ftds_real label is just "FTDs" in display (slug still ftds_real)
         $this->assertStringContainsString('FTDs', $html);
     }
 
@@ -113,7 +115,7 @@ class StatsFormatterTest extends TestCase
         $this->assertStringContainsString('—', $html);
     }
 
-    public function test_rate_metrics_formatted_with_two_decimals(): void
+    public function test_rate_metrics_rendered_as_percent(): void
     {
         $formatter = new StatsFormatter;
         $period = $this->period('today');
@@ -122,7 +124,8 @@ class StatsFormatterTest extends TestCase
             ['label' => 'lp1', 'metrics' => ['lp_ctr' => 0.123456]],
         ]);
 
-        $this->assertStringContainsString('0.12', $html);
+        // Ratio metric: 0.123456 → 12.35%
+        $this->assertStringContainsString('12.35%', $html);
     }
 
     public function test_html_special_characters_in_label_are_escaped(): void

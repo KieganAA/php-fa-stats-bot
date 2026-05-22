@@ -29,7 +29,7 @@ class MvtSlicerTest extends TestCase
         config()->set('aio.limiter.retry_interval_ms', 20);
         config()->set('aio.rate_limits.per_minute', 1000);
         config()->set('aio.target_metrics', [
-            'clicks' => 'LP1 Clicks',
+            'clicks' => 'Q Visits',
             'leads' => 'Leads',
         ]);
 
@@ -42,7 +42,7 @@ class MvtSlicerTest extends TestCase
 
     public function test_captures_three_hour_slice_with_decoded_dimensions_and_projected_metrics(): void
     {
-        MetricModel::create($this->metricRow('m-clicks', 'LP1 Clicks'));
+        MetricModel::create($this->metricRow('m-clicks', 'Q Visits'));
         MetricModel::create($this->metricRow('m-leads', 'Leads'));
 
         $headerField = $this->makeField('header-uuid', 'lp_landing_header');
@@ -94,7 +94,7 @@ class MvtSlicerTest extends TestCase
 
     public function test_since_start_uses_tracking_started_at(): void
     {
-        MetricModel::create($this->metricRow('m-clicks', 'LP1 Clicks'));
+        MetricModel::create($this->metricRow('m-clicks', 'Q Visits'));
         MetricModel::create($this->metricRow('m-leads', 'Leads'));
 
         $field = $this->makeField('h-uuid', 'lp_header');
@@ -127,7 +127,7 @@ class MvtSlicerTest extends TestCase
 
     public function test_capture_both_creates_two_slices(): void
     {
-        MetricModel::create($this->metricRow('m-clicks', 'LP1 Clicks'));
+        MetricModel::create($this->metricRow('m-clicks', 'Q Visits'));
         MetricModel::create($this->metricRow('m-leads', 'Leads'));
 
         $field = $this->makeField('h-uuid', 'lp_header');

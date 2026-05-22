@@ -25,15 +25,6 @@ final class MvtFormatter
 {
     private const SHOWN_METRICS = ['clicks', 'leads', 'real_cr', 'ftds_real'];
 
-    private const METRIC_LABELS = [
-        'clicks' => 'clicks',
-        'leads' => 'leads',
-        'real_cr' => 'CR%',
-        'ftds_real' => 'FTDs',
-    ];
-
-    private const RATE_METRICS = ['lp_ctr', 'real_cr', 'interest_rate', 'scrolling'];
-
     public function __construct(
         private readonly LandingFormatter $landings,
     ) {}
@@ -100,8 +91,8 @@ final class MvtFormatter
                 continue;
             }
             $value = $row['metrics'][$slug];
-            $label = self::METRIC_LABELS[$slug] ?? $slug;
-            $valueStr = $this->fmtValue($slug, $value);
+            $label = MetricDisplay::label($slug);
+            $valueStr = MetricDisplay::format($slug, $value);
 
             $deltaStr = '';
             if ($baseline !== null && isset($baseline[$slug]) && $baseline[$slug] !== null && (float) $baseline[$slug] != 0.0 && $value !== null) {
@@ -115,21 +106,6 @@ final class MvtFormatter
         $lines[] = '  '.implode(' · ', $metricBits);
 
         return implode("\n", $lines);
-    }
-
-    private function fmtValue(string $slug, int|float|null $value): string
-    {
-        if ($value === null) {
-            return '—';
-        }
-        if (in_array($slug, self::RATE_METRICS, true)) {
-            return number_format((float) $value, 2);
-        }
-        if (is_int($value) || floor((float) $value) == $value) {
-            return (string) (int) $value;
-        }
-
-        return (string) round((float) $value, 2);
     }
 
     /** Variant values can be huge (full HTML paragraphs). Cap to a readable length. */

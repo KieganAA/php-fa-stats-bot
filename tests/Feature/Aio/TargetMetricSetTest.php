@@ -15,12 +15,12 @@ class TargetMetricSetTest extends TestCase
 
     public function test_resolves_slugs_to_uuids_and_projects_metrics(): void
     {
-        MetricModel::create($this->metricRow('m-clicks', 'LP1 Clicks'));
+        MetricModel::create($this->metricRow('m-clicks', 'Q Visits'));
         MetricModel::create($this->metricRow('m-leads', 'Leads'));
 
         $set = new TargetMetricSet(
             $this->app->make(MetricResolver::class),
-            ['clicks' => 'LP1 Clicks', 'leads' => 'Leads'],
+            ['clicks' => 'Q Visits', 'leads' => 'Leads'],
         );
 
         $resolved = $set->all();
@@ -37,11 +37,11 @@ class TargetMetricSetTest extends TestCase
 
     public function test_project_emits_null_for_missing_uuid(): void
     {
-        MetricModel::create($this->metricRow('m-clicks', 'LP1 Clicks'));
+        MetricModel::create($this->metricRow('m-clicks', 'Q Visits'));
 
         $set = new TargetMetricSet(
             $this->app->make(MetricResolver::class),
-            ['clicks' => 'LP1 Clicks'],
+            ['clicks' => 'Q Visits'],
         );
 
         $this->assertSame(['clicks' => null], $set->project([]));
@@ -49,11 +49,11 @@ class TargetMetricSetTest extends TestCase
 
     public function test_throws_when_a_target_metric_is_missing(): void
     {
-        MetricModel::create($this->metricRow('m-clicks', 'LP1 Clicks'));
+        MetricModel::create($this->metricRow('m-clicks', 'Q Visits'));
 
         $set = new TargetMetricSet(
             $this->app->make(MetricResolver::class),
-            ['clicks' => 'LP1 Clicks', 'leads' => 'Leads'],
+            ['clicks' => 'Q Visits', 'leads' => 'Leads'],
         );
 
         $this->expectException(RuntimeException::class);
@@ -63,11 +63,11 @@ class TargetMetricSetTest extends TestCase
 
     public function test_resolution_is_case_insensitive(): void
     {
-        MetricModel::create($this->metricRow('m-cr', 'LP1  CR%'));
+        MetricModel::create($this->metricRow('m-cr', 'Real Approve'));
 
         $set = new TargetMetricSet(
             $this->app->make(MetricResolver::class),
-            ['real_cr' => 'lp1  cr%'],
+            ['real_cr' => 'real approve'],
         );
 
         $this->assertSame('m-cr', $set->all()['real_cr']['uuid']);

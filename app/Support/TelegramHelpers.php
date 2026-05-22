@@ -32,6 +32,51 @@ use Throwable;
  */
 final class TelegramHelpers
 {
+    /**
+     * Send a "⏳ запрашиваю AIO…" placeholder, run $work, then edit the same
+     * message with the work's return value. Smooths perceived latency for
+     * commands that involve a network round-trip — the user sees an immediate
+     * acknowledgement even if AIO takes a couple seconds.
+     *
+     * $work is a closure returning the final Telegram-HTML string. Any throw
+     * inside becomes an "❌ Ошибка: …" edit on the same placeholder so the
+     * chat doesn't end up with two messages per fail.
+     */
+    public static function withPlaceholder(
+        Nutgram $bot,
+        callable $work,
+        string $placeholder = '⏳ запрашиваю AIO…',
+    ): void {
+        $sent = $bot->sendMessage($placeholder, parse_mode: 'HTML');
+        $chatId = $sent->chat->id ?? $bot->chatId();
+        $messageId = $sent->message_id ?? null;
+
+        try {
+            $html = $work();
+            if ($html === null) {
+                return;
+            }
+            if ($messageId !== null) {
+                $bot->editMessageText(
+                    text: $html,
+                    chat_id: $chatId,
+                    message_id: $messageId,
+                    parse_mode: 'HTML',
+                    disable_web_page_preview: true,
+                );
+            } else {
+                $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
+            }
+        } catch (Throwable $e) {
+            $err = '❌ Ошибка: '.htmlspecialchars($e->getMessage(), ENT_QUOTES | ENT_HTML5);
+            if ($messageId !== null) {
+                $bot->editMessageText(text: $err, chat_id: $chatId, message_id: $messageId, parse_mode: 'HTML');
+            } else {
+                $bot->sendMessage($err, parse_mode: 'HTML');
+            }
+        }
+    }
+
     /** @return list<string> */
     public static function args(Nutgram $bot): array
     {
@@ -112,8 +157,9 @@ final class TelegramHelpers
             return false;
         }
 
-        try {
-            $window = app(PeriodParser::class)->parse($period);
+        self::withPlaceholder($bot, function () use ($resolved, $period): string {
+            $user = app(AppContext::class)->user();
+            $window = app(PeriodParser::class)->parse($period, $user?->timezone);
 
             $pivot = app(LandingReports::class)->statsByPrimitive(
                 filterKey: $resolved['filter_key'],
@@ -123,18 +169,19 @@ final class TelegramHelpers
                 timezone: $window['timezone'],
             );
 
-            $names = app(AppContext::class)->user()?->metricPreferences();
+            $names = $user?->metricPreferences();
+            $resolved = app(LandingFormatter::class)->enrichLabel(
+                $resolved,
+                $user?->landingDisplayOpts() ?? [],
+            );
+
             $metrics = $pivot->rows[0]['metrics'] ?? [];
             $projected = app(TargetMetricSet::class)->project($metrics, $names);
 
-            $html = app(StatsFormatter::class)->format($window, [
+            return app(StatsFormatter::class)->format($window, [
                 ['label' => $resolved['label'], 'metrics' => $projected],
             ], $names);
-
-            $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
-        } catch (Throwable $e) {
-            $bot->sendMessage('Ошибка: '.$e->getMessage());
-        }
+        });
 
         return true;
     }
@@ -168,10 +215,13 @@ final class TelegramHelpers
                 return;
             }
 
-            $window = app(PeriodParser::class)->parse($period);
-            $report = app(MvtReporter::class)->report($landing, $window);
-            $html = app(MvtFormatter::class)->format($report);
-            $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
+            self::withPlaceholder($bot, function () use ($landing, $period): string {
+                $tz = app(AppContext::class)->user()?->timezone;
+                $window = app(PeriodParser::class)->parse($period, $tz);
+                $report = app(MvtReporter::class)->report($landing, $window);
+
+                return app(MvtFormatter::class)->format($report);
+            });
         } catch (Throwable $e) {
             $bot->sendMessage('Ошибка: '.$e->getMessage());
         }
@@ -185,17 +235,15 @@ final class TelegramHelpers
     public static function runRanking(Nutgram $bot, string $kind, array $args): void
     {
         $period = $args !== [] ? implode(' ', $args) : null;
-        try {
-            $window = app(PeriodParser::class)->parse($period);
+        self::withPlaceholder($bot, function () use ($kind, $period): string {
             $user = app(AppContext::class)->user();
+            $window = app(PeriodParser::class)->parse($period, $user?->timezone);
             $names = $user?->hasCustomMetricPreferences()
                 ? array_slice($user->metricPreferences(), 0, 3)
                 : null;
-            $html = app(RankingReporter::class)->report($kind, $window, metricNames: $names);
-            $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
-        } catch (Throwable $e) {
-            $bot->sendMessage('Ошибка: '.$e->getMessage());
-        }
+
+            return app(RankingReporter::class)->report($kind, $window, metricNames: $names);
+        });
     }
 
     /**
@@ -255,7 +303,7 @@ final class TelegramHelpers
         $fmt = app(LandingFormatter::class);
         foreach ($group->members as $m) {
             if ($m->trackedLanding?->landing) {
-                $lines[] = '• '.htmlspecialchars($fmt->shortLine($m->trackedLanding->landing));
+                $lines[] = '• '.htmlspecialchars($fmt->line($m->trackedLanding->landing, $user->landingDisplayOpts()));
             }
         }
         $lines[] = count($group->members) >= 2
@@ -288,7 +336,7 @@ final class TelegramHelpers
             $lines[] = "\n<code>".htmlspecialchars($g->name)."</code>{$paused}";
             foreach ($g->members as $m) {
                 if ($m->trackedLanding?->landing) {
-                    $lines[] = '  • '.htmlspecialchars($fmt->shortLine($m->trackedLanding->landing));
+                    $lines[] = '  • '.htmlspecialchars($fmt->line($m->trackedLanding->landing, $user->landingDisplayOpts()));
                 }
             }
         }

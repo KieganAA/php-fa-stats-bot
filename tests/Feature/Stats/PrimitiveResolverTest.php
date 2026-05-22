@@ -40,7 +40,11 @@ class PrimitiveResolverTest extends TestCase
         $this->assertSame(1, $r['position']);
         $this->assertInstanceOf(Landing::class, $r['landing']);
         $this->assertStringContainsString('#33169', $r['label']);
-        $this->assertStringContainsString('Celeb Preland', $r['label']);
+        // PrimitiveResolver returns the *compact* default label. Callers that
+        // want type/name in the label call LandingFormatter::enrichLabel with
+        // the user's prefs.
+        $this->assertStringNotContainsString('Celeb Preland', $r['label']);
+        $this->assertStringContainsString('NO', $r['label']);
         $this->assertStringContainsString('NO', $r['label']);
         $this->assertStringNotContainsString('@zigi', $r['label']);  // creator owner is not on LP labels
     }
@@ -62,7 +66,8 @@ class PrimitiveResolverTest extends TestCase
 
         $r = app(PrimitiveResolver::class)->resolve('99');
 
-        $this->assertStringContainsString('archived', $r['label']);
+        // Compact label marks archived with "(a)" instead of the full word.
+        $this->assertStringContainsString('(a)', $r['label']);
     }
 
     public function test_unknown_human_id_throws_with_resync_hint(): void

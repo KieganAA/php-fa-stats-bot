@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 
 class LandingFormatterTest extends TestCase
 {
-    public function test_short_line_packs_id_type_country_owner(): void
+    public function test_default_line_is_id_plus_country_only(): void
     {
         $landing = $this->fake(
             humanId: 33169,
@@ -18,31 +18,70 @@ class LandingFormatterTest extends TestCase
             countries: ['NO'],
         );
 
-        $this->assertSame('#33169 · Celeb Preland · NO', (new LandingFormatter)->shortLine($landing));
+        // Default: type + name are NOT shown — the new conservative baseline.
+        $this->assertSame('#33169 · NO', (new LandingFormatter)->line($landing));
+        $this->assertSame('#33169 · NO', (new LandingFormatter)->shortLine($landing));
     }
 
-    public function test_short_line_marks_archived(): void
+    public function test_show_type_opt_includes_type(): void
     {
-        $landing = $this->fake(humanId: 99, type: 'White 2.0', owner: 'cloak', countries: ['GB'], archived: true);
+        $landing = $this->fake(
+            humanId: 33169,
+            type: 'Celeb Preland',
+            countries: ['NO'],
+        );
 
-        $this->assertStringEndsWith('(archived)', (new LandingFormatter)->shortLine($landing));
+        $this->assertSame(
+            '#33169 · Celeb Preland · NO',
+            (new LandingFormatter)->line($landing, ['show_type' => true]),
+        );
     }
 
-    public function test_short_line_handles_missing_pieces(): void
+    public function test_archived_marked_with_compact_suffix(): void
+    {
+        $landing = $this->fake(humanId: 99, type: 'White 2.0', countries: ['GB'], archived: true);
+
+        $this->assertSame('#99 · GB (a)', (new LandingFormatter)->line($landing));
+    }
+
+    public function test_handles_missing_pieces(): void
     {
         $landing = $this->fake(humanId: 42, type: null, owner: null, countries: []);
 
-        $this->assertSame('#42', (new LandingFormatter)->shortLine($landing));
+        $this->assertSame('#42', (new LandingFormatter)->line($landing));
     }
 
-    public function test_long_line_appends_full_name(): void
+    public function test_show_name_appends_full_name(): void
     {
         $name = 'NO no | Håkon Haugsbø - Factcheck 2 - gemini | PlH-Ha | nettavisen | FULL';
-        $landing = $this->fake(humanId: 33169, name: $name, type: 'Celeb Preland', owner: 'zigi', countries: ['NO']);
+        $landing = $this->fake(humanId: 33169, name: $name, type: 'Celeb Preland', countries: ['NO']);
 
-        $long = (new LandingFormatter)->longLine($landing);
+        $long = (new LandingFormatter)->line($landing, ['show_type' => true, 'show_name' => true]);
         $this->assertStringContainsString('#33169 · Celeb Preland', $long);
         $this->assertStringContainsString($name, $long);
+    }
+
+    public function test_enrich_label_swaps_compact_for_user_opts(): void
+    {
+        $landing = $this->fake(humanId: 33169, type: 'Celeb Preland', countries: ['NO']);
+        $resolved = [
+            'kind' => 'landing',
+            'label' => '#33169 · NO',
+            'landing' => $landing,
+        ];
+
+        $out = (new LandingFormatter)->enrichLabel($resolved, ['show_type' => true]);
+
+        $this->assertSame('#33169 · Celeb Preland · NO', $out['label']);
+    }
+
+    public function test_enrich_label_leaves_country_resolutions_alone(): void
+    {
+        $resolved = ['kind' => 'country', 'label' => '🌍 DK'];
+
+        $out = (new LandingFormatter)->enrichLabel($resolved, ['show_type' => true]);
+
+        $this->assertSame('🌍 DK', $out['label']);
     }
 
     public function test_to_array_carries_full_struct(): void

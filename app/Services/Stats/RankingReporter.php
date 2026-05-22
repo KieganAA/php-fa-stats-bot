@@ -136,7 +136,7 @@ final class RankingReporter
         foreach ($uuids as $u) {
             $landing = $landings->get($u);
             $out[$u] = $landing !== null
-                ? $this->landingFmt->compactLine($landing)
+                ? $this->landingFmt->line($landing)
                 : substr($u, 0, 8).'…';
         }
 

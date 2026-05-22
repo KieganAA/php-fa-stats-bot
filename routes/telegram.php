@@ -240,14 +240,13 @@ $command('compare', function (Nutgram $bot) {
         return;
     }
 
-    try {
-        $window = app(PeriodParser::class)->parse($period);
-        $names = app(\App\Services\Auth\AppContext::class)->user()?->metricPreferences();
-        $html = app(ComparisonReporter::class)->report($tokens, $window, $names);
-        $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
+    H::withPlaceholder($bot, function () use ($tokens, $period): string {
+        $user = app(\App\Services\Auth\AppContext::class)->user();
+        $window = app(PeriodParser::class)->parse($period, $user?->timezone);
+        $names = $user?->metricPreferences();
+
+        return app(ComparisonReporter::class)->report($tokens, $window, $names);
+    });
 })->description('Сравнить N лендов / стран');
 
 $command('ai', function (Nutgram $bot) {

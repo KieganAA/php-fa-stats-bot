@@ -94,6 +94,24 @@ class User extends Authenticatable
         return isset($settings['metrics']) && is_array($settings['metrics']);
     }
 
+    /**
+     * Landing-row display options stored at `settings.landing_display`.
+     * Defaults are minimal — id + country only. Users opt-in to richer
+     * labels via the Mini App.
+     *
+     * @return array{show_type: bool, show_name: bool}
+     */
+    public function landingDisplayOpts(): array
+    {
+        $settings = is_array($this->settings) ? $this->settings : [];
+        $d = (array) ($settings['landing_display'] ?? []);
+
+        return [
+            'show_type' => (bool) ($d['show_type'] ?? false),
+            'show_name' => (bool) ($d['show_name'] ?? false),
+        ];
+    }
+
     public function displayName(): string
     {
         if ($this->telegram_username) {

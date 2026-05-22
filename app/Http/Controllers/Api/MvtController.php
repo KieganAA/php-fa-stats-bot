@@ -19,6 +19,7 @@ class MvtController
 {
     public function show(
         Request $request,
+        \App\Services\Auth\AppContext $ctx,
         PeriodParser $periods,
         MvtReporter $reporter,
         MvtFormatter $formatter,
@@ -40,7 +41,7 @@ class MvtController
         }
 
         try {
-            $window = $periods->parse($data['period'] ?? null);
+            $window = $periods->parse($data['period'] ?? null, $ctx->userOrFail()->timezone);
             $report = $reporter->report($landing, $window);
             $html = $formatter->format($report);
 

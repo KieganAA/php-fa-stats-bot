@@ -31,8 +31,8 @@ class RankingsController
         ]);
 
         try {
-            $window = $periods->parse($data['period'] ?? null);
             $user = $ctx->userOrFail();
+            $window = $periods->parse($data['period'] ?? null, $user->timezone);
             // Top screens stay narrow (3 columns) — take the first 3 of the
             // user's prefs so they get to choose the priority metrics here too.
             $names = $user->hasCustomMetricPreferences()

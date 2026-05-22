@@ -24,7 +24,9 @@ return [
 
     'cache' => [
         'enabled' => filter_var(env('AIO_CACHE_ENABLED', true), FILTER_VALIDATE_BOOL),
-        'default_ttl' => (int) env('AIO_CACHE_TTL', 60),
+        // 3 minutes — same /lps2 / /geo run twice within the window serves
+        // from Redis instead of dragging AIO again. Tunable via AIO_CACHE_TTL.
+        'default_ttl' => (int) env('AIO_CACHE_TTL', 180),
         'prefix' => 'aio:cache:',
     ],
 

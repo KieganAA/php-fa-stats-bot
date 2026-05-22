@@ -25,6 +25,7 @@ class GroupsController
 {
     public function __construct(
         private readonly LandingFormatter $landingFmt,
+        private readonly \App\Services\Auth\AppContext $ctx,
     ) {}
 
     public function index(AppContext $ctx): JsonResponse
@@ -127,7 +128,7 @@ class GroupsController
                     'name' => $landing->name,
                     'type' => $landing->landing_type_name,
                     'country' => $landing->countries[0] ?? null,
-                    'short_label' => $this->landingFmt->shortLine($landing),
+                    'short_label' => $this->landingFmt->line($landing, $this->ctx->user()?->landingDisplayOpts() ?? []),
                 ];
             })->values()->all(),
         ];

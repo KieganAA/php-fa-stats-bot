@@ -91,7 +91,13 @@ class AioHttpClient
 
                 $data = $response->json() ?? [];
 
-                if ($cacheTtl !== 0 && $cacheTtl !== null) {
+                // ttl=0 means "explicitly skip caching" (write-action callers
+                // do this). ttl=null means "use cache.default_ttl" — null is
+                // forwarded to ResponseCache::put which substitutes the
+                // configured default. Before this fix the extra `!== null`
+                // guard meant default-ttl calls silently never wrote, so the
+                // cache stayed cold and every /stats DK call hit AIO afresh.
+                if ($cacheTtl !== 0) {
                     $this->cache->put($fingerprint, $data, $cacheTtl);
                 }
 

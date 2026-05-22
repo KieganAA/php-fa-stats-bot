@@ -37,8 +37,9 @@ class CompareController
         }
 
         try {
-            $window = $periods->parse($data['period'] ?? null);
-            $html = $reporter->report($tokens, $window, $ctx->userOrFail()->metricPreferences());
+            $user = $ctx->userOrFail();
+            $window = $periods->parse($data['period'] ?? null, $user->timezone);
+            $html = $reporter->report($tokens, $window, $user->metricPreferences());
 
             return response()->json([
                 'window' => [

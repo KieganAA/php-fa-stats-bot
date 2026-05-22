@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Auth\AppContext;
+use App\Services\Stats\LandingFormatter;
 use App\Services\Stats\MetricDisplay;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\PrimitiveResolver;
@@ -25,6 +26,7 @@ class StatsController
         PeriodParser $periods,
         LandingReports $reports,
         TargetMetricSet $targets,
+        LandingFormatter $landingFmt,
     ): JsonResponse {
         $data = $request->validate([
             'primitive' => 'required|string|max:64',
@@ -32,8 +34,10 @@ class StatsController
         ]);
 
         try {
+            $user = $ctx->userOrFail();
             $resolved = $primitives->resolve($data['primitive']);
-            $window = $periods->parse($data['period'] ?? null);
+            $resolved = $landingFmt->enrichLabel($resolved, $user->landingDisplayOpts());
+            $window = $periods->parse($data['period'] ?? null, $user->timezone);
 
             $pivot = $reports->statsByPrimitive(
                 filterKey: $resolved['filter_key'],

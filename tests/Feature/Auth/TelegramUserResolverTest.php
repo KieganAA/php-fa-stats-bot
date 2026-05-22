@@ -27,7 +27,7 @@ class TelegramUserResolverTest extends TestCase
         $this->assertSame('A.', $user->telegram_last_name);
         $this->assertSame('en', $user->telegram_language_code);
         $this->assertNotNull($user->last_seen_at);
-        $this->assertSame('UTC', $user->timezone);
+        $this->assertSame('Europe/Moscow', $user->timezone);  // new team-friendly default
         $this->assertSame([], $user->settings);
         $this->assertDatabaseCount('users', 1);
     }

@@ -53,6 +53,30 @@
             >{{ saving ? 'Saving…' : (saved ? '✓ Saved' : 'Save') }}</button>
         </form>
 
+        <!-- Landing display options -->
+        <form v-if="me" @submit.prevent="saveLandingDisplay" class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">
+                Отображение лендингов
+            </div>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                По умолчанию в таблицах показывается только <code>#id · страна</code>.
+                Опционально добавляй тип и/или полное имя.
+            </p>
+            <label class="flex items-center gap-2 text-sm py-0.5">
+                <input type="checkbox" v-model="landingForm.show_type" />
+                <span>Показывать тип лендинга <span class="text-[var(--tg-theme-hint-color,#6b7280)]">(Celeb Preland, White 2.0…)</span></span>
+            </label>
+            <label class="flex items-center gap-2 text-sm py-0.5">
+                <input type="checkbox" v-model="landingForm.show_name" />
+                <span>Показывать полное имя лендинга</span>
+            </label>
+            <button
+                type="submit"
+                class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
+                :disabled="savingLanding || !landingChanged"
+            >{{ savingLanding ? 'Saving…' : (landingSaved ? '✓ Saved' : 'Save') }}</button>
+        </form>
+
         <!-- Metric picker -->
         <div v-if="me" class="space-y-3 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
             <div class="flex items-baseline justify-between">
@@ -177,11 +201,20 @@ import { hapticImpact, showConfirm } from '../telegram.js';
 const me = ref(null);
 const form = reactive({ timezone: '', default_period: '', default_position: 1 });
 const aiForm = reactive({ anthropic_api_key: '', anthropic_model: '' });
+const landingForm = reactive({ show_type: false, show_name: false });
+const landingInitial = reactive({ show_type: false, show_name: false });
 const saving = ref(false);
 const saved = ref(false);
 const savingAi = ref(false);
 const savedAi = ref(false);
+const savingLanding = ref(false);
+const landingSaved = ref(false);
 const error = ref(null);
+
+const landingChanged = computed(() =>
+    landingForm.show_type !== landingInitial.show_type ||
+    landingForm.show_name !== landingInitial.show_name,
+);
 
 // Metric picker state
 const allMetrics = ref([]);
@@ -237,6 +270,12 @@ async function load() {
         aiForm.anthropic_model = me.value.anthropic_model || '';
         aiForm.anthropic_api_key = '';
 
+        const ld = me.value.settings?.landing_display ?? {};
+        landingForm.show_type = !!ld.show_type;
+        landingForm.show_name = !!ld.show_name;
+        landingInitial.show_type = landingForm.show_type;
+        landingInitial.show_name = landingForm.show_name;
+
         const m = await api.listMetrics();
         allMetrics.value = m.metrics;
 
@@ -244,6 +283,22 @@ async function load() {
         pickedInitial.value = [...picked.value];
     } catch (e) {
         error.value = e.message;
+    }
+}
+
+async function saveLandingDisplay() {
+    savingLanding.value = true; landingSaved.value = false; error.value = null;
+    try {
+        const settings = { ...(me.value.settings || {}), landing_display: { ...landingForm } };
+        me.value = await api.updateMe({ settings });
+        landingInitial.show_type = landingForm.show_type;
+        landingInitial.show_name = landingForm.show_name;
+        landingSaved.value = true;
+        hapticImpact('light');
+    } catch (e) {
+        error.value = e.message;
+    } finally {
+        savingLanding.value = false;
     }
 }
 

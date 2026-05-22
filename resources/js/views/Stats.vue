@@ -121,30 +121,43 @@ const compareTokens = computed(() =>
         .filter(Boolean),
 );
 
-const LABELS = {
-    clicks: 'clicks',
-    lp_ctr: 'LP CTR',
-    leads: 'leads',
-    ftds_real: 'FTDs',
-    real_cr: 'CR%',
-    interest_rate: 'interest',
-    scrolling: 'scroll',
-};
-const RATE_KEYS = new Set(['lp_ctr', 'real_cr', 'interest_rate', 'scrolling']);
-
+// `metric_columns` in /api/v1/stats response is the user's preference list with
+// each metric's label + kind already computed by the server (MetricDisplay).
+// Render exactly that — no client-side knowledge of which slugs exist.
 const singleMetricsList = computed(() => {
     if (!singleResult.value) return [];
-    const out = [];
-    for (const key of Object.keys(LABELS)) {
-        const v = singleResult.value.metrics?.[key];
-        let value;
-        if (v === null || v === undefined) value = '—';
-        else if (RATE_KEYS.has(key)) value = Number(v).toFixed(2);
-        else value = Number.isInteger(v) ? v.toLocaleString() : Number(v).toFixed(2);
-        out.push({ key, label: LABELS[key], value });
-    }
-    return out;
+    return (singleResult.value.metric_columns ?? []).map((col) => {
+        const v = singleResult.value.metrics?.[col.name];
+        return {
+            key: col.name,
+            label: col.label,
+            value: formatMetric(v, col.kind),
+        };
+    });
 });
+
+function formatMetric(value, kind) {
+    if (value === null || value === undefined) return '—';
+    const n = Number(value);
+    if (Number.isNaN(n)) return '—';
+    if (kind === 'ratio') return (n * 100).toFixed(2) + '%';
+    if (kind === 'percent') return n.toFixed(2) + '%';
+    if (kind === 'money') return formatCount(n) + ' $';
+    return formatCount(n);
+}
+
+function formatCount(n) {
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return trimZeros((n / 1_000_000).toFixed(2)) + 'M';
+    if (abs >= 10_000) return trimZeros((n / 1000).toFixed(1)) + 'K';
+    if (Number.isInteger(n)) return n.toString();
+    return trimZeros(n.toFixed(2));
+}
+
+function trimZeros(s) {
+    if (!s.includes('.')) return s;
+    return s.replace(/\.?0+$/, '') || '0';
+}
 
 async function run() {
     loading.value = true;

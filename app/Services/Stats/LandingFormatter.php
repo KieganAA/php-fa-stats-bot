@@ -5,56 +5,32 @@ namespace App\Services\Stats;
 use App\Models\Aio\Landing;
 
 /**
- * Renders a Landing as a compact "#human_id · type · country · owner" line
- * suitable for both Telegram-HTML headers and Mini App labels.
+ * Renders a Landing as a compact label for tables and report headers.
  *
- * Examples:
- *   #33169 · Celeb Preland · NO · @zigi
- *   #205228 · White 2.0 · IT · @Cloakerson  (archived)
+ * Default is minimal: `#human_id · country` (+ `(a)` for archived). That fits
+ * tight mobile rows. Callers (typically through the user's saved prefs) can
+ * widen the line with options to include the landing type and/or the full
+ * name:
  *
- * `name` is intentionally NOT in the short form — AIO names are long, often
- * `"NO no | Håkon Haugsbø - Factcheck 2 - gemini | PlH-Ha | nettavisen | FULL"`.
- * Callers that want the full name should use `longLine()`.
+ *   line(L)                                       → #33169 · NO
+ *   line(L, ['show_type' => true])                → #33169 · Celeb Preland · NO
+ *   line(L, ['show_type' => true, 'show_name'])   → #33169 · Celeb Preland · NO
+ *                                                   NO no | Håkon Haugsbø…
+ *
+ * The owner name (aio_landings.owner_name) is intentionally never on the
+ * line: it identifies who *created* the landing, not who's running traffic
+ * to it now. Use buyer dimensions on the AIO side for that.
  */
 final class LandingFormatter
 {
     /**
-     * Ultra-compact label for tight overview tables (`/lps1`, `/lps2`).
-     * Drops the type — in a ranking by position type tends to repeat, so it
-     * doesn't add info per row and just eats characters. Keep human_id +
-     * country + archived flag.
-     *
-     *   #205215 · IT
-     *   #33169 · NO (archived)
+     * @param  array{show_type?: bool, show_name?: bool, archived_suffix?: string}  $opts
      */
-    public function compactLine(Landing $landing): string
-    {
-        $bits = ['#'.$landing->human_id];
-        if ($country = $this->firstCountry($landing)) {
-            $bits[] = $country;
-        }
-        $line = implode(' · ', $bits);
-        if ($landing->is_archived) {
-            $line .= ' (a)';
-        }
-
-        return $line;
-    }
-
-    /**
-     * Compact one-line label for tight UI (report headers, list rows).
-     *
-     * Owner is intentionally NOT in the line — `aio_landings.owner_name` is
-     * who *created* the landing, not who's currently driving traffic to it.
-     * That distinction matters: media buyers want "who's running this LP?",
-     * which lives on the campaign side (campaign_owner_uuid). Showing the
-     * creator alongside per-LP metrics misleads.
-     */
-    public function shortLine(Landing $landing): string
+    public function line(Landing $landing, array $opts = []): string
     {
         $bits = ['#'.$landing->human_id];
 
-        if ($landing->landing_type_name) {
+        if (($opts['show_type'] ?? false) && $landing->landing_type_name) {
             $bits[] = $landing->landing_type_name;
         }
         if ($country = $this->firstCountry($landing)) {
@@ -63,16 +39,41 @@ final class LandingFormatter
 
         $line = implode(' · ', $bits);
         if ($landing->is_archived) {
-            $line .= ' (archived)';
+            $line .= ' '.($opts['archived_suffix'] ?? '(a)');
+        }
+
+        if (($opts['show_name'] ?? false) && $landing->name !== '') {
+            $line .= "\n".$landing->name;
         }
 
         return $line;
     }
 
-    /** Verbose two-line label: short header + full landing name. */
-    public function longLine(Landing $landing): string
+    /**
+     * Default compact form — used as a backwards-compatible alias from older
+     * call sites (PrimitiveResolver, RankingReporter) that already wanted the
+     * minimal label.
+     */
+    public function shortLine(Landing $landing): string
     {
-        return $this->shortLine($landing)."\n".$landing->name;
+        return $this->line($landing);
+    }
+
+    /**
+     * Apply user landing-display opts to an already-resolved primitive shape
+     * (the array PrimitiveResolver emits). Only does work when kind='landing';
+     * country / unknown kinds get back unchanged.
+     *
+     * @param  array<string, mixed>  $resolved
+     * @param  array{show_type?: bool, show_name?: bool}  $opts
+     */
+    public function enrichLabel(array $resolved, array $opts): array
+    {
+        if (($resolved['kind'] ?? '') === 'landing' && ($resolved['landing'] ?? null) instanceof Landing) {
+            $resolved['label'] = $this->line($resolved['landing'], $opts);
+        }
+
+        return $resolved;
     }
 
     /** Plain-text struct for the Mini App / AI tools. */

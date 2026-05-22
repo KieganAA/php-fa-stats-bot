@@ -38,9 +38,10 @@ final class TelegramUserResolver
         $user->last_seen_at = CarbonImmutable::now();
 
         if (! $user->exists) {
-            // Sensible default — Laravel infers locale from APP_TIMEZONE, but
-            // we want each user to be able to override later from the Mini App.
-            $user->timezone ??= (string) config('app.timezone', 'UTC');
+            // Europe/Moscow (UTC+3) is what the team actually works in — AIO's
+            // pivot endpoint accepts the IANA name in the `timezone` field of
+            // the dates tuple. Users can override later from the Mini App.
+            $user->timezone ??= 'Europe/Moscow';
             $user->settings ??= [];
         }
 

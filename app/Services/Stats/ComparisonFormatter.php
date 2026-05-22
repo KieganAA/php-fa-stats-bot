@@ -8,34 +8,28 @@ use Carbon\CarbonInterface;
  * Side-by-side comparison report.
  *
  * Layout — landings/countries in columns, metrics in rows. When there are
- * exactly two entries we append a Δ% column versus the leftmost one (the
- * primary use case is "is B better than A?"). For N≥3 we drop the delta
- * column — too many directions to compare.
+ * exactly two entries we append a Δ% column versus the leftmost one. For
+ * N≥3 we drop the delta column.
  *
- *   📊 compare — today (UTC, 22.05 00:00..22.05 14:30)
- *
- *               #33169    #205215   Δ%
- *   clicks      120       480       +300%
- *   LP CTR      0.45%     0.62%     +37.8%
- *   ...
- *
- * Display values delegate to MetricDisplay so they match the bot's other
- * surfaces exactly.
+ * Metric set comes from MetricDisplay::defaultNames() unless the caller
+ * passes a per-user list.
  */
 final class ComparisonFormatter
 {
     /**
      * @param  array{from: CarbonInterface, to: CarbonInterface, timezone: string, label: string}  $period
      * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
+     * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
      */
-    public function format(array $period, array $entries): string
+    public function format(array $period, array $entries, ?array $metricNames = null): string
     {
         if (count($entries) < 2) {
             return $this->header($period)."\n\n<i>Compare нуждается минимум в 2 примитивах.</i>";
         }
 
+        $names = $metricNames ?? MetricDisplay::defaultNames();
         $header = $this->header($period);
-        $body = $this->table($entries);
+        $body = $this->table($entries, $names);
 
         return $header."\n\n".$body;
     }
@@ -48,14 +42,20 @@ final class ComparisonFormatter
         return "<b>📊 compare</b> — {$this->escape($period['label'])} ({$this->escape($period['timezone'])}, {$window})";
     }
 
-    /** @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries */
-    private function table(array $entries): string
+    /**
+     * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
+     * @param  list<string>  $names
+     */
+    private function table(array $entries, array $names): string
     {
+        if ($names === []) {
+            return '<i>Не выбраны метрики.</i>';
+        }
+
         $withDelta = count($entries) === 2;
 
-        // Column widths capped at 20 so the line stays mobile-friendly.
         $colWidth = min(20, max(11, ...array_map(fn ($e) => mb_strlen($e['label']) + 1, $entries)));
-        $labelWidth = 10;
+        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $names));
         $deltaWidth = 9;
 
         $headerCols = str_pad('', $labelWidth);
@@ -70,14 +70,14 @@ final class ComparisonFormatter
         $left = $entries[0]['metrics'];
         $right = $withDelta ? $entries[1]['metrics'] : null;
 
-        foreach (MetricDisplay::order() as $slug) {
-            $row = str_pad(MetricDisplay::label($slug), $labelWidth);
+        foreach ($names as $name) {
+            $row = str_pad(MetricDisplay::label($name), $labelWidth);
             foreach ($entries as $e) {
-                $v = $e['metrics'][$slug] ?? null;
-                $row .= str_pad($this->truncate(MetricDisplay::format($slug, $v), $colWidth - 1), $colWidth);
+                $v = $e['metrics'][$name] ?? null;
+                $row .= str_pad($this->truncate(MetricDisplay::format($name, $v), $colWidth - 1), $colWidth);
             }
             if ($withDelta) {
-                $row .= str_pad($this->fmtDelta($left[$slug] ?? null, $right[$slug] ?? null), $deltaWidth);
+                $row .= str_pad($this->fmtDelta($left[$name] ?? null, $right[$name] ?? null), $deltaWidth);
             }
             $lines[] = "<code>{$this->escape(rtrim($row))}</code>";
         }

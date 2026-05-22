@@ -23,26 +23,7 @@ use App\Models\TrackedLanding;
  */
 class MvtReportFormatter
 {
-    /** Order of metrics in the per-row block — matches config('aio.target_metrics') key order. */
-    private const METRIC_ORDER = [
-        'clicks',
-        'lp_ctr',
-        'leads',
-        'ftds_real',
-        'real_cr',
-        'interest_rate',
-        'scrolling',
-    ];
-
-    private const METRIC_LABELS = [
-        'clicks' => 'clicks',
-        'lp_ctr' => 'LP CTR',
-        'leads' => 'leads',
-        'ftds_real' => 'FTDs',
-        'real_cr' => 'CR%',
-        'interest_rate' => 'interest',
-        'scrolling' => 'scroll',
-    ];
+    // Metric labels + value formatting come from MetricDisplay; order = defaults.
 
     /** @param  array  $comparison  output of MvtComparer::compare() */
     public function format(TrackedLanding $landing, array $comparison): string
@@ -87,11 +68,11 @@ class MvtReportFormatter
     {
         $header = $this->renderDimensions($row['dimensions']);
         $lines = [];
-        foreach (self::METRIC_ORDER as $slug) {
-            if (! array_key_exists($slug, $row['current'])) {
+        foreach (\App\Services\Stats\MetricDisplay::defaultNames() as $name) {
+            if (! array_key_exists($name, $row['current'])) {
                 continue;
             }
-            $lines[] = $this->renderMetricLine($slug, $row['current'][$slug], $row['delta_prior'][$slug] ?? null, $row['delta_since_start'][$slug] ?? null);
+            $lines[] = $this->renderMetricLine($name, $row['current'][$name], $row['delta_prior'][$name] ?? null, $row['delta_since_start'][$name] ?? null);
         }
 
         return $header."\n".implode("\n", $lines);
@@ -109,27 +90,13 @@ class MvtReportFormatter
         return implode(' · ', $parts);
     }
 
-    private function renderMetricLine(string $slug, int|float|null $value, ?array $deltaPrior, ?array $deltaSince): string
+    private function renderMetricLine(string $name, int|float|null $value, ?array $deltaPrior, ?array $deltaSince): string
     {
-        $label = self::METRIC_LABELS[$slug] ?? $slug;
-        $valueStr = $this->formatValue($slug, $value);
+        $label = \App\Services\Stats\MetricDisplay::label($name);
+        $valueStr = \App\Services\Stats\MetricDisplay::format($name, $value);
         $deltaPart = $this->formatDelta($deltaPrior, $deltaSince);
 
-        return '<code>'.str_pad($label, 10).$valueStr.'</code>'.$deltaPart;
-    }
-
-    private function formatValue(string $slug, int|float|null $value): string
-    {
-        if ($value === null) {
-            return str_pad('—', 10);
-        }
-
-        $isRate = in_array($slug, ['lp_ctr', 'real_cr', 'interest_rate', 'scrolling'], true);
-        if ($isRate) {
-            return str_pad(number_format((float) $value, 2), 10);
-        }
-
-        return str_pad((string) (is_int($value) ? $value : round((float) $value, 2)), 10);
+        return '<code>'.str_pad($label, 10).str_pad($valueStr, 10).'</code>'.$deltaPart;
     }
 
     private function formatDelta(?array $deltaPrior, ?array $deltaSince): string

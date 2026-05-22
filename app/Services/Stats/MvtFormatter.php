@@ -23,7 +23,8 @@ use Carbon\CarbonInterface;
  */
 final class MvtFormatter
 {
-    private const SHOWN_METRICS = ['clicks', 'leads', 'real_cr', 'ftds_real'];
+    /** Compact 4-metric row line — uses AIO metric names. */
+    private const SHOWN_METRICS = ['Q Visits', 'Leads', 'Real Approve', 'Total FTDs'];
 
     public function __construct(
         private readonly LandingFormatter $landings,
@@ -48,7 +49,7 @@ final class MvtFormatter
         $blocks = [$header];
 
         // Sort rows by leads desc — leader on top.
-        usort($rows, fn ($a, $b) => ($b['metrics']['leads'] ?? 0) <=> ($a['metrics']['leads'] ?? 0));
+        usort($rows, fn ($a, $b) => ($b['metrics']['Leads'] ?? 0) <=> ($a['metrics']['Leads'] ?? 0));
 
         $baselineMetrics = $rows[0]['metrics'];
         foreach ($rows as $i => $row) {

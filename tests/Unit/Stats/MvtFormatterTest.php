@@ -32,7 +32,7 @@ class MvtFormatterTest extends TestCase
             'window' => $this->window(),
             'rows' => [[
                 'variants' => ['lp_header' => 'Headline A'],
-                'metrics' => ['clicks' => 120, 'leads' => 12],
+                'metrics' => ['Q Visits' => 120, 'Leads' => 12],
             ]],
             'active_slugs' => ['lp_header'],
         ]);
@@ -51,8 +51,8 @@ class MvtFormatterTest extends TestCase
             'landing' => $landing,
             'window' => $this->window(),
             'rows' => [
-                ['variants' => ['lp_header' => 'A'], 'metrics' => ['clicks' => 100, 'leads' => 10]],
-                ['variants' => ['lp_header' => 'B'], 'metrics' => ['clicks' => 100, 'leads' => 20]],  // leader
+                ['variants' => ['lp_header' => 'A'], 'metrics' => ['Q Visits' => 100, 'Leads' => 10]],
+                ['variants' => ['lp_header' => 'B'], 'metrics' => ['Q Visits' => 100, 'Leads' => 20]],  // leader
             ],
             'active_slugs' => ['lp_header'],
         ]);
@@ -75,7 +75,7 @@ class MvtFormatterTest extends TestCase
             'window' => $this->window(),
             'rows' => [[
                 'variants' => ['lp_header' => '&quot;Quoted&quot; &mdash; clean'],
-                'metrics' => ['clicks' => 1],
+                'metrics' => ['Q Visits' => 1],
             ]],
             'active_slugs' => ['lp_header'],
         ]);

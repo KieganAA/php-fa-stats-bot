@@ -28,10 +28,9 @@ class MvtSlicerTest extends TestCase
         config()->set('aio.limiter.max_wait_ms', 500);
         config()->set('aio.limiter.retry_interval_ms', 20);
         config()->set('aio.rate_limits.per_minute', 1000);
-        config()->set('aio.target_metrics', [
-            'clicks' => 'Q Visits',
-            'leads' => 'Leads',
-        ]);
+        config()->set('aio.default_metrics', ['Q Visits', 'Leads']);
+        // Rebind TargetMetricSet so it picks up the test config change.
+        $this->app->forgetInstance(\App\Services\Aio\Pivot\TargetMetricSet::class);
 
         foreach (['aio:limit:rpm', 'aio:limit:concurrent', 'aio:limit:heavy'] as $key) {
             Redis::connection()->del($key);
@@ -87,9 +86,9 @@ class MvtSlicerTest extends TestCase
 
         $this->assertCount(2, $slice->rows);
         $this->assertSame(['lp_landing_header' => 'Header A', 'lp_content_var_game' => ''], $slice->rows[0]['dimensions']);
-        $this->assertSame(['clicks' => 100, 'leads' => 5], $slice->rows[0]['metrics']);
+        $this->assertSame(['Q Visits' => 100, 'Leads' => 5], $slice->rows[0]['metrics']);
         $this->assertSame(['lp_landing_header' => 'Header A', 'lp_content_var_game' => 'Blue'], $slice->rows[1]['dimensions']);
-        $this->assertSame(['clicks' => 60, 'leads' => 3], $slice->rows[1]['metrics']);
+        $this->assertSame(['Q Visits' => 60, 'Leads' => 3], $slice->rows[1]['metrics']);
     }
 
     public function test_since_start_uses_tracking_started_at(): void

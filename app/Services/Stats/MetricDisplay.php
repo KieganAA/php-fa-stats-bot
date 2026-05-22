@@ -3,81 +3,162 @@
 namespace App\Services\Stats;
 
 /**
- * Single source of truth for "how do we render this metric to the user".
+ * Single source of truth for "how do we render this AIO metric to the user".
  *
- * Each AIO metric we project to has:
- *   - a short display label (what the user reads in the table)
- *   - a kind that controls value formatting:
- *       count   → integer with thousands separator
- *       ratio   → 0..1 from AIO  → multiply by 100, append '%'  (e.g. CR, CTR)
- *       percent → already 0..100 → append '%' as-is             (e.g. scroll avg)
+ * Each AIO metric is identified by its `aio_metrics.name`. We compute three
+ * things per metric:
  *
- * The display order is the iteration order of SPEC — formatters loop over
- * MetricDisplay::order() so adding/reordering a metric is one-place.
+ *   - label: short caption shown in tables/reports (kept narrow on purpose
+ *            so phone layouts don't wrap)
+ *   - kind:  one of count / ratio / percent / money — drives value formatting
+ *   - format($value): the rendered string
  *
- * NB: AIO column names live in config/aio.php under target_metrics — that's
- * the *projection* layer (slug → AIO metric name). This class is the
- * *presentation* layer (slug → human label + display formatter). They're
- * deliberately separate so a metric mapping change doesn't ripple into UI
- * tweaks and vice-versa.
+ * Kinds:
+ *   count   → integer, thousands separator   (e.g. "2 081")
+ *   ratio   → 0..1 from AIO → ×100 + '%'      (e.g. 0.1176 → "11.76%")
+ *   percent → already 0..100 → just append %  (e.g. 27.93 → "27.93%")
+ *   money   → count style + ' $' suffix       (e.g. "135.29 $")
+ *
+ * We hardcode overrides for the metrics we ship with by default — those
+ * names also drive the canonical short-label vocabulary buyers expect
+ * ("clicks", "CR%", "FTDs"). For everything else, kind is inferred from
+ * the AIO name suffix (% / $) and a few keyword rules (CTR, CR, Rate,
+ * Approve → ratio).
+ *
+ * defaultNames() returns the curated set shown when the user hasn't picked
+ * their own list yet — same 7 metrics as before, just keyed by AIO name now.
  */
 final class MetricDisplay
 {
     public const KIND_COUNT = 'count';
 
-    /** AIO returns 0..1; UI shows percent. */
     public const KIND_RATIO = 'ratio';
 
-    /** AIO returns 0..100 already (e.g. "Q LP1 Scroll Avg"). */
     public const KIND_PERCENT = 'percent';
 
+    public const KIND_MONEY = 'money';
+
     /**
+     * Curated displays for the default set. Names match aio_metrics.name
+     * exactly (case-sensitive — that's how AIO returns them).
+     *
      * @var array<string, array{label: string, kind: string}>
      */
-    private const SPEC = [
-        'clicks' => ['label' => 'clicks', 'kind' => self::KIND_COUNT],
-        'lp_ctr' => ['label' => 'LP CTR', 'kind' => self::KIND_RATIO],
-        'leads' => ['label' => 'leads', 'kind' => self::KIND_COUNT],
-        'ftds_real' => ['label' => 'FTDs', 'kind' => self::KIND_COUNT],
-        'real_cr' => ['label' => 'CR%', 'kind' => self::KIND_RATIO],
-        'interest_rate' => ['label' => 'interest', 'kind' => self::KIND_RATIO],
-        'scrolling' => ['label' => 'scroll', 'kind' => self::KIND_PERCENT],
+    private const OVERRIDES = [
+        'Q Visits' => ['label' => 'clicks', 'kind' => self::KIND_COUNT],
+        'Q LP1 CTR' => ['label' => 'LP CTR', 'kind' => self::KIND_RATIO],
+        'Leads' => ['label' => 'leads', 'kind' => self::KIND_COUNT],
+        'Total FTDs' => ['label' => 'FTDs', 'kind' => self::KIND_COUNT],
+        'Real Approve' => ['label' => 'CR%', 'kind' => self::KIND_RATIO],
+        'LP1 Interest Rate' => ['label' => 'interest', 'kind' => self::KIND_RATIO],
+        'Q LP1 Scroll Avg' => ['label' => 'scroll', 'kind' => self::KIND_PERCENT],
     ];
 
-    /** Ordered slugs (display order). */
-    public static function order(): array
+    /** AIO metric names shown when the user has no custom preference. */
+    public static function defaultNames(): array
     {
-        return array_keys(self::SPEC);
+        return array_keys(self::OVERRIDES);
     }
 
-    public static function label(string $slug): string
+    /** Top-N overview screens use a narrower set (3 columns fit a phone). */
+    public static function topNames(): array
     {
-        return self::SPEC[$slug]['label'] ?? $slug;
+        return ['Q Visits', 'Leads', 'Real Approve'];
     }
 
-    public static function kind(string $slug): string
+    /** Short display caption for the metric. */
+    public static function label(string $name): string
     {
-        return self::SPEC[$slug]['kind'] ?? self::KIND_COUNT;
+        return self::OVERRIDES[$name]['label'] ?? self::shortenName($name);
     }
 
-    /** Format a single value for display ("88", "1 234", "11.76%", "—"). */
-    public static function format(string $slug, int|float|null $value): string
+    public static function kind(string $name): string
+    {
+        return self::OVERRIDES[$name]['kind'] ?? self::inferKind($name);
+    }
+
+    public static function format(string $name, int|float|null $value): string
     {
         if ($value === null) {
             return '—';
         }
 
-        return match (self::kind($slug)) {
+        return match (self::kind($name)) {
             self::KIND_RATIO => self::pct((float) $value * 100),
             self::KIND_PERCENT => self::pct((float) $value),
+            self::KIND_MONEY => self::count($value).' $',
             default => self::count($value),
         };
     }
 
-    /** Subset useful for narrower overview tables (Top screens). */
-    public static function topOrder(): array
+    /**
+     * For a list of AIO names, return parallel arrays of label + kind — useful
+     * for API responses (so the Mini App can pick metrics from a known menu).
+     *
+     * @param  list<string>  $names
+     * @return list<array{name: string, label: string, kind: string}>
+     */
+    public static function describe(array $names): array
     {
-        return ['clicks', 'leads', 'real_cr'];
+        $out = [];
+        foreach ($names as $name) {
+            $out[] = [
+                'name' => $name,
+                'label' => self::label($name),
+                'kind' => self::kind($name),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Heuristic — invoked when no explicit override exists. Designed to handle
+     * the ~80 metrics in our AIO without manual labelling each one.
+     */
+    private static function inferKind(string $name): string
+    {
+        $lower = strtolower($name);
+
+        if (str_ends_with($name, '$')) {
+            return self::KIND_MONEY;
+        }
+        if (str_ends_with($name, '%')) {
+            return self::KIND_RATIO;
+        }
+        // Names that AIO stores as already-percent (0..100). The only one we
+        // know of right now is the scroll average; add more here as they
+        // surface (the override list above will usually win first anyway).
+        if (str_contains($lower, 'scroll avg')) {
+            return self::KIND_PERCENT;
+        }
+        // Conversion-flavoured names without explicit % suffix. Most of these
+        // come back from AIO as 0..1 floats and need ×100 for display.
+        if (
+            str_contains($lower, 'ctr')
+            || str_contains($lower, ' rate')
+            || str_ends_with($lower, 'rate')
+            || str_contains($lower, 'approve')
+            || preg_match('/\bcr\b/', $lower)
+        ) {
+            return self::KIND_RATIO;
+        }
+
+        return self::KIND_COUNT;
+    }
+
+    /**
+     * Mild abbreviation for names we don't have an override for. Keeps long
+     * AIO names ("Q LP1 CR FTD Per Mile") from blowing out table layout.
+     */
+    private static function shortenName(string $name): string
+    {
+        $name = trim($name);
+        if (mb_strlen($name) <= 12) {
+            return $name;
+        }
+
+        return mb_substr($name, 0, 11).'…';
     }
 
     private static function pct(float $value): string

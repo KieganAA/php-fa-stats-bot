@@ -40,11 +40,11 @@ class MvtReportFormatterTest extends TestCase
         $current = $this->makeSlice('2026-04-25 12:00:00', '2026-04-25 15:00:00', []);
         $row = [
             'dimensions' => ['lp_landing_header' => 'Variant A'],
-            'current' => ['clicks' => 100, 'lp_ctr' => 0.45, 'leads' => 5, 'ftds_real' => 1, 'real_cr' => 1.0, 'interest_rate' => 0.5, 'scrolling' => 0.6],
-            'prior' => ['clicks' => 80],
-            'since_start' => ['clicks' => 1000],
-            'delta_prior' => ['clicks' => ['abs' => 20, 'pct' => 0.25]],
-            'delta_since_start' => ['clicks' => ['abs' => -900, 'pct' => -0.9]],
+            'current' => ['Q Visits' => 100, 'Q LP1 CTR' => 0.45, 'Leads' => 5, 'Total FTDs' => 1, 'Real Approve' => 1.0, 'LP1 Interest Rate' => 0.5, 'Q LP1 Scroll Avg' => 0.6],
+            'prior' => ['Q Visits' => 80],
+            'since_start' => ['Q Visits' => 1000],
+            'delta_prior' => ['Q Visits' => ['abs' => 20, 'pct' => 0.25]],
+            'delta_since_start' => ['Q Visits' => ['abs' => -900, 'pct' => -0.9]],
         ];
 
         $html = $formatter->format($landing, [
@@ -74,7 +74,7 @@ class MvtReportFormatterTest extends TestCase
             'rows' => [
                 [
                     'dimensions' => ['x' => 'A'],
-                    'current' => ['clicks' => 0, 'lp_ctr' => null, 'leads' => 0],
+                    'current' => ['Q Visits' => 0, 'Q LP1 CTR' => null, 'Leads' => 0],
                     'prior' => null,
                     'since_start' => null,
                     'delta_prior' => null,
@@ -99,7 +99,7 @@ class MvtReportFormatterTest extends TestCase
             'since_start' => null,
             'rows' => [[
                 'dimensions' => ['lp_header' => '', 'lp_game' => 'Roulette'],
-                'current' => ['clicks' => 50],
+                'current' => ['Q Visits' => 50],
                 'prior' => null,
                 'since_start' => null,
                 'delta_prior' => null,

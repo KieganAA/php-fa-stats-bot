@@ -33,7 +33,7 @@ class LandingSnapshotterTest extends TestCase
         $snapshot = app(LandingSnapshotter::class)->capture($tracked, LandingSnapshot::KIND_3H, $now);
 
         $this->assertSame(LandingSnapshot::KIND_3H, $snapshot->kind);
-        $this->assertSame(100, $snapshot->metrics['clicks']);
+        $this->assertSame(100, $snapshot->metrics['Q Visits']);
         $this->assertSame($tracked->id, $snapshot->tracked_landing_id);
         $this->assertTrue($snapshot->window_end->equalTo($now));
         $this->assertTrue($snapshot->window_start->equalTo($now->subHours(3)));

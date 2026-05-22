@@ -35,7 +35,7 @@ final class RankingReporter
      * @param  array{from: \DateTimeInterface, to: \DateTimeInterface, timezone: string, label: string}  $window
      * @return string Telegram HTML
      */
-    public function report(string $kind, array $window, int $topN = 15, string $sortMetric = 'leads'): string
+    public function report(string $kind, array $window, int $topN = 15, string $sortMetric = 'Leads'): string
     {
         $dim = $this->dimensionConfig($kind);
 

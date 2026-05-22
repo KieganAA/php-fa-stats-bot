@@ -14,7 +14,7 @@ class StatsFormatterTest extends TestCase
         $period = $this->period('today');
 
         $html = $formatter->format($period, [
-            ['label' => 'lp1', 'metrics' => ['clicks' => 10]],
+            ['label' => 'lp1', 'metrics' => ['Q Visits' => 10]],
         ]);
 
         $this->assertStringContainsString('📊 stats', $html);
@@ -29,8 +29,8 @@ class StatsFormatterTest extends TestCase
         $period = $this->period('7d');
 
         $html = $formatter->format($period, [
-            ['label' => 'lp1', 'metrics' => ['clicks' => 10]],
-            ['label' => 'lp2', 'metrics' => ['clicks' => 20]],
+            ['label' => 'lp1', 'metrics' => ['Q Visits' => 10]],
+            ['label' => 'lp2', 'metrics' => ['Q Visits' => 20]],
         ]);
 
         $this->assertStringContainsString('📊 compare', $html);
@@ -53,23 +53,23 @@ class StatsFormatterTest extends TestCase
 
         $html = $formatter->format($period, [
             ['label' => 'lp1', 'metrics' => [
-                'clicks' => 100,
-                'lp_ctr' => 0.4567,
-                'leads' => 5,
-                'ftds_real' => 1,
-                'real_cr' => 0.20,
-                'interest_rate' => 0.50,
-                'scrolling' => 0.60,
+                'Q Visits' => 100,
+                'Q LP1 CTR' => 0.4567,
+                'Leads' => 5,
+                'Total FTDs' => 1,
+                'Real Approve' => 0.20,
+                'LP1 Interest Rate' => 0.50,
+                'Q LP1 Scroll Avg' => 0.60,
             ]],
         ]);
 
         $this->assertStringContainsString('<b>lp1</b>', $html);
+        // Display uses MetricDisplay labels — "clicks" for "Q Visits" metric.
         $this->assertStringContainsString('clicks', $html);
         $this->assertStringContainsString('100', $html);
         $this->assertStringContainsString('LP CTR', $html);
         // 0.4567 ratio → "45.67%"
         $this->assertStringContainsString('45.67%', $html);
-        // ftds_real label is just "FTDs" in display (slug still ftds_real)
         $this->assertStringContainsString('FTDs', $html);
     }
 
@@ -79,13 +79,13 @@ class StatsFormatterTest extends TestCase
         $period = $this->period('today');
 
         $html = $formatter->format($period, [
-            ['label' => 'alpha', 'metrics' => ['clicks' => 100, 'leads' => 5]],
-            ['label' => 'beta', 'metrics' => ['clicks' => 200, 'leads' => 11]],
+            ['label' => 'alpha', 'metrics' => ['Q Visits' => 100, 'Leads' => 5]],
+            ['label' => 'beta', 'metrics' => ['Q Visits' => 200, 'Leads' => 11]],
         ]);
 
         $this->assertStringContainsString('alpha', $html);
         $this->assertStringContainsString('beta', $html);
-        $this->assertStringContainsString('clicks', $html);
+        $this->assertStringContainsString('clicks', $html);  // "Q Visits" → "clicks" label
         $this->assertStringContainsString('100', $html);
         $this->assertStringContainsString('200', $html);
     }
@@ -96,7 +96,7 @@ class StatsFormatterTest extends TestCase
         $period = $this->period('today');
 
         $html = $formatter->format($period, [
-            ['label' => 'lp1', 'metrics' => ['clicks' => 100, 'lp_ctr' => null]],
+            ['label' => 'lp1', 'metrics' => ['Q Visits' => 100, 'Q LP1 CTR' => null]],
         ]);
 
         $this->assertStringContainsString('—', $html);
@@ -108,8 +108,8 @@ class StatsFormatterTest extends TestCase
         $period = $this->period('today');
 
         $html = $formatter->format($period, [
-            ['label' => 'a', 'metrics' => ['clicks' => 100]],
-            ['label' => 'b', 'metrics' => ['leads' => 4]],
+            ['label' => 'a', 'metrics' => ['Q Visits' => 100]],
+            ['label' => 'b', 'metrics' => ['Leads' => 4]],
         ]);
 
         $this->assertStringContainsString('—', $html);
@@ -121,7 +121,7 @@ class StatsFormatterTest extends TestCase
         $period = $this->period('today');
 
         $html = $formatter->format($period, [
-            ['label' => 'lp1', 'metrics' => ['lp_ctr' => 0.123456]],
+            ['label' => 'lp1', 'metrics' => ['Q LP1 CTR' => 0.123456]],
         ]);
 
         // Ratio metric: 0.123456 → 12.35%
@@ -134,7 +134,7 @@ class StatsFormatterTest extends TestCase
         $period = $this->period('today');
 
         $html = $formatter->format($period, [
-            ['label' => 'evil <script>', 'metrics' => ['clicks' => 1]],
+            ['label' => 'evil <script>', 'metrics' => ['Q Visits' => 1]],
         ]);
 
         $this->assertStringContainsString('&lt;script&gt;', $html);

@@ -7,26 +7,29 @@ use Carbon\CarbonInterface;
 /**
  * Renders a stats snapshot as Telegram HTML.
  *
- * Single landing → per-metric block; two or more → tabular layout with
- * landings in columns and metrics in rows. Display labels + value formatting
- * come from MetricDisplay (ratio×100+%, percent+%, count with thousands sep).
+ * Single entry → per-metric block; two or more → tabular layout with entries
+ * in columns and metrics in rows. Metric set (names + display order) comes
+ * from MetricDisplay::defaultNames() unless the caller passes their own
+ * list (per-user preference).
  */
 class StatsFormatter
 {
     /**
      * @param  array{from: CarbonInterface, to: CarbonInterface, timezone: string, label: string}  $period
      * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
+     * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
      */
-    public function format(array $period, array $entries): string
+    public function format(array $period, array $entries, ?array $metricNames = null): string
     {
+        $names = $metricNames ?? MetricDisplay::defaultNames();
         $header = $this->header($period, count($entries));
         if ($entries === []) {
             return $header."\n\n<i>Нет данных.</i>";
         }
 
         $body = count($entries) === 1
-            ? $this->blockLayout($entries[0])
-            : $this->tableLayout($entries);
+            ? $this->blockLayout($entries[0], $names)
+            : $this->tableLayout($entries, $names);
 
         return $header."\n\n".$body;
     }
@@ -40,28 +43,42 @@ class StatsFormatter
         return "<b>{$title}</b> — {$this->escape($period['label'])} ({$this->escape($period['timezone'])}, {$window})";
     }
 
-    /** @param  array{label: string, metrics: array<string, int|float|null>}  $entry */
-    private function blockLayout(array $entry): string
+    /**
+     * @param  array{label: string, metrics: array<string, int|float|null>}  $entry
+     * @param  list<string>  $names
+     */
+    private function blockLayout(array $entry, array $names): string
     {
+        if ($names === []) {
+            return '<i>Не выбраны метрики для отображения.</i>';
+        }
+        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 2, $names));
+
         $lines = ['<b>'.$this->escape($entry['label']).'</b>'];
-        foreach (MetricDisplay::order() as $slug) {
-            if (! array_key_exists($slug, $entry['metrics'])) {
+        foreach ($names as $name) {
+            if (! array_key_exists($name, $entry['metrics'])) {
                 continue;
             }
-            $label = str_pad(MetricDisplay::label($slug), 10);
-            $value = MetricDisplay::format($slug, $entry['metrics'][$slug]);
+            $label = str_pad(MetricDisplay::label($name), $labelWidth);
+            $value = MetricDisplay::format($name, $entry['metrics'][$name]);
             $lines[] = "<code>{$label}{$value}</code>";
         }
 
         return implode("\n", $lines);
     }
 
-    /** @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries */
-    private function tableLayout(array $entries): string
+    /**
+     * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
+     * @param  list<string>  $names
+     */
+    private function tableLayout(array $entries, array $names): string
     {
+        if ($names === []) {
+            return '<i>Не выбраны метрики.</i>';
+        }
         $colWidth = max(10, ...array_map(fn ($e) => mb_strlen($e['label']) + 1, $entries));
         $colWidth = min($colWidth, 20);
-        $labelWidth = 10;
+        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $names));
 
         $headerCols = str_pad('', $labelWidth);
         foreach ($entries as $e) {
@@ -69,11 +86,12 @@ class StatsFormatter
         }
         $lines = ["<code>{$this->escape(rtrim($headerCols))}</code>"];
 
-        foreach (MetricDisplay::order() as $slug) {
-            $label = str_pad(MetricDisplay::label($slug), $labelWidth);
-            $row = $label;
+        foreach ($names as $name) {
+            $row = str_pad(MetricDisplay::label($name), $labelWidth);
             foreach ($entries as $e) {
-                $value = array_key_exists($slug, $e['metrics']) ? MetricDisplay::format($slug, $e['metrics'][$slug]) : '—';
+                $value = array_key_exists($name, $e['metrics'])
+                    ? MetricDisplay::format($name, $e['metrics'][$name])
+                    : '—';
                 $row .= str_pad($this->truncate($value, $colWidth - 1), $colWidth);
             }
             $lines[] = "<code>{$this->escape(rtrim($row))}</code>";

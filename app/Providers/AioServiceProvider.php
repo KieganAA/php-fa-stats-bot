@@ -69,7 +69,7 @@ class AioServiceProvider extends ServiceProvider
 
         $this->app->singleton(TargetMetricSet::class, fn (Application $app) => new TargetMetricSet(
             $app->make(MetricResolver::class),
-            (array) $app['config']->get('aio.target_metrics', []),
+            (array) $app['config']->get('aio.default_metrics', []),
         ));
 
         $this->app->singleton(MvtSlicer::class, fn (Application $app) => new MvtSlicer(

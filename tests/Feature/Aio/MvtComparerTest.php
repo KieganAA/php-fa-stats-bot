@@ -22,14 +22,14 @@ class MvtComparerTest extends TestCase
         ]);
 
         $prior = $this->makeSlice($tracked, MvtSlice::KIND_3H, '2026-04-25 09:00:00', '2026-04-25 12:00:00', [
-            ['dimensions' => ['x' => 'A'], 'metrics' => ['clicks' => 80, 'leads' => 4]],
+            ['dimensions' => ['x' => 'A'], 'metrics' => ['Q Visits' => 80, 'Leads' => 4]],
         ]);
         $sinceStart = $this->makeSlice($tracked, MvtSlice::KIND_SINCE_START, '2026-04-25 09:00:00', '2026-04-25 12:00:00', [
-            ['dimensions' => ['x' => 'A'], 'metrics' => ['clicks' => 80, 'leads' => 4]],
+            ['dimensions' => ['x' => 'A'], 'metrics' => ['Q Visits' => 80, 'Leads' => 4]],
         ]);
         $current = $this->makeSlice($tracked, MvtSlice::KIND_3H, '2026-04-25 12:00:00', '2026-04-25 15:00:00', [
-            ['dimensions' => ['x' => 'A'], 'metrics' => ['clicks' => 100, 'leads' => 5]],
-            ['dimensions' => ['x' => 'B'], 'metrics' => ['clicks' => 50, 'leads' => 2]],
+            ['dimensions' => ['x' => 'A'], 'metrics' => ['Q Visits' => 100, 'Leads' => 5]],
+            ['dimensions' => ['x' => 'B'], 'metrics' => ['Q Visits' => 50, 'Leads' => 2]],
         ]);
 
         $result = $this->app->make(MvtComparer::class)->compare($current);
@@ -41,10 +41,10 @@ class MvtComparerTest extends TestCase
         $this->assertCount(2, $result['rows']);
         $rowA = $result['rows'][0];
         $this->assertSame(['x' => 'A'], $rowA['dimensions']);
-        $this->assertSame(['clicks' => 100, 'leads' => 5], $rowA['current']);
-        $this->assertSame(['clicks' => 80, 'leads' => 4], $rowA['prior']);
-        $this->assertSame(20, $rowA['delta_prior']['clicks']['abs']);
-        $this->assertEqualsWithDelta(0.25, $rowA['delta_prior']['clicks']['pct'], 1e-9);
+        $this->assertSame(['Q Visits' => 100, 'Leads' => 5], $rowA['current']);
+        $this->assertSame(['Q Visits' => 80, 'Leads' => 4], $rowA['prior']);
+        $this->assertSame(20, $rowA['delta_prior']['Q Visits']['abs']);
+        $this->assertEqualsWithDelta(0.25, $rowA['delta_prior']['Q Visits']['pct'], 1e-9);
 
         $rowB = $result['rows'][1];
         $this->assertNull($rowB['prior']);
@@ -60,7 +60,7 @@ class MvtComparerTest extends TestCase
         ]);
 
         $current = $this->makeSlice($tracked, MvtSlice::KIND_3H, '2026-04-25 12:00:00', '2026-04-25 15:00:00', [
-            ['dimensions' => ['x' => 'A'], 'metrics' => ['clicks' => 100]],
+            ['dimensions' => ['x' => 'A'], 'metrics' => ['Q Visits' => 100]],
         ]);
 
         $result = $this->app->make(MvtComparer::class)->compare($current);
@@ -79,16 +79,16 @@ class MvtComparerTest extends TestCase
         ]);
 
         $this->makeSlice($tracked, MvtSlice::KIND_3H, '2026-04-25 09:00:00', '2026-04-25 12:00:00', [
-            ['dimensions' => ['x' => 'A'], 'metrics' => ['clicks' => 0]],
+            ['dimensions' => ['x' => 'A'], 'metrics' => ['Q Visits' => 0]],
         ]);
         $current = $this->makeSlice($tracked, MvtSlice::KIND_3H, '2026-04-25 12:00:00', '2026-04-25 15:00:00', [
-            ['dimensions' => ['x' => 'A'], 'metrics' => ['clicks' => 5]],
+            ['dimensions' => ['x' => 'A'], 'metrics' => ['Q Visits' => 5]],
         ]);
 
         $result = $this->app->make(MvtComparer::class)->compare($current);
 
-        $this->assertSame(5, $result['rows'][0]['delta_prior']['clicks']['abs']);
-        $this->assertNull($result['rows'][0]['delta_prior']['clicks']['pct']);
+        $this->assertSame(5, $result['rows'][0]['delta_prior']['Q Visits']['abs']);
+        $this->assertNull($result['rows'][0]['delta_prior']['Q Visits']['pct']);
     }
 
     public function test_dimension_key_is_order_independent(): void
@@ -100,15 +100,15 @@ class MvtComparerTest extends TestCase
         ]);
 
         $this->makeSlice($tracked, MvtSlice::KIND_3H, '2026-04-25 09:00:00', '2026-04-25 12:00:00', [
-            ['dimensions' => ['a' => 'x', 'b' => 'y'], 'metrics' => ['clicks' => 10]],
+            ['dimensions' => ['a' => 'x', 'b' => 'y'], 'metrics' => ['Q Visits' => 10]],
         ]);
         $current = $this->makeSlice($tracked, MvtSlice::KIND_3H, '2026-04-25 12:00:00', '2026-04-25 15:00:00', [
-            ['dimensions' => ['b' => 'y', 'a' => 'x'], 'metrics' => ['clicks' => 20]],
+            ['dimensions' => ['b' => 'y', 'a' => 'x'], 'metrics' => ['Q Visits' => 20]],
         ]);
 
         $result = $this->app->make(MvtComparer::class)->compare($current);
 
-        $this->assertSame(10, $result['rows'][0]['delta_prior']['clicks']['abs']);
+        $this->assertSame(10, $result['rows'][0]['delta_prior']['Q Visits']['abs']);
     }
 
     private function makeSlice(TrackedLanding $tracked, string $kind, string $start, string $end, array $rows): MvtSlice

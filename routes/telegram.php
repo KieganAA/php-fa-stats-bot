@@ -9,9 +9,17 @@ use App\Services\Auth\TelegramUserResolver;
 use App\Services\Stats\AliasResolver;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\StatsFormatter;
+use App\Support\FlexibleCommand;
 use App\Support\TelegramHelpers as H;
 use Illuminate\Support\Facades\Redis;
+use SergiX44\Nutgram\Handlers\Type\Command;
 use SergiX44\Nutgram\Nutgram;
+
+// FlexibleCommand fixes Nutgram's "command name must match exactly" behaviour
+// so `/alias list` and `/stats foo 7d` route correctly. See its class docblock.
+$command = fn (string $name, callable $handler): Command => $bot->registerCommand(
+    new FlexibleCommand($handler, $name),
+);
 
 // User-resolver middleware. Upserts a User row from the incoming TG identity
 // and parks it in AppContext for the rest of the pipeline. Runs before the
@@ -88,7 +96,7 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
     return $next($bot);
 });
 
-$bot->onCommand('start', function (Nutgram $bot) {
+$command('start', function (Nutgram $bot) {
     $bot->sendMessage(
         "👋 Привет! Я fa-stats-bot.\n\n".
         "Открой <b>мини-апп</b> (/open) — там удобнее, чем команды.\n\n".
@@ -107,28 +115,25 @@ $bot->onCommand('start', function (Nutgram $bot) {
         "/ai &lt;вопрос&gt; · /ping · /help\n\n".
         'Период: today, yesterday, 7d, 24h, week, month.',
         parse_mode: 'HTML',
-        reply_markup: \App\Support\TelegramHelpers::openMiniAppKeyboard(),
+        reply_markup: H::openMiniAppKeyboard(),
     );
 })->description('Стартовое сообщение');
 
-$bot->onCommand('open', function (Nutgram $bot) {
-    $keyboard = \App\Support\TelegramHelpers::openMiniAppKeyboard();
+$command('open', function (Nutgram $bot) {
+    $keyboard = H::openMiniAppKeyboard();
     if ($keyboard === null) {
         $bot->sendMessage('Mini App URL не настроен. Задай APP_URL в .env.');
 
         return;
     }
-    $bot->sendMessage(
-        '📱 Открыть приложение:',
-        reply_markup: $keyboard,
-    );
+    $bot->sendMessage('📱 Открыть приложение:', reply_markup: $keyboard);
 })->description('Открыть мини-апп');
 
-$bot->onCommand('ping', function (Nutgram $bot) {
+$command('ping', function (Nutgram $bot) {
     $bot->sendMessage('pong 🏓');
 })->description('Проверка связи');
 
-$bot->onCommand('help', function (Nutgram $bot) {
+$command('help', function (Nutgram $bot) {
     $bot->sendMessage(
         "<b>Мини-апп:</b> /open\n\n".
         "<b>Статы:</b>\n".
@@ -148,7 +153,7 @@ $bot->onCommand('help', function (Nutgram $bot) {
     );
 })->description('Справка');
 
-$bot->onCommand('alias', function (Nutgram $bot) {
+$command('alias', function (Nutgram $bot) {
     $args = H::args($bot);
     $action = strtolower($args[0] ?? 'list');
 
@@ -164,7 +169,7 @@ $bot->onCommand('alias', function (Nutgram $bot) {
     }
 })->description('Управление алиасами лендингов');
 
-$bot->onCommand('stats', function (Nutgram $bot) {
+$command('stats', function (Nutgram $bot) {
     $args = H::args($bot);
     if ($args === []) {
         $bot->sendMessage('Использование: /stats <alias> [период]');
@@ -203,7 +208,7 @@ $bot->onCommand('stats', function (Nutgram $bot) {
     }
 })->description('Метрики лендинга');
 
-$bot->onCommand('compare', function (Nutgram $bot) {
+$command('compare', function (Nutgram $bot) {
     $args = H::args($bot);
     if (count($args) < 2) {
         $bot->sendMessage('Использование: /compare <alias1> <alias2> [...] [период]');
@@ -264,7 +269,7 @@ $bot->onCommand('compare', function (Nutgram $bot) {
     }
 })->description('Сравнить лендинги');
 
-$bot->onCommand('bind', function (Nutgram $bot) {
+$command('bind', function (Nutgram $bot) {
     try {
         H::bind($bot, H::args($bot));
     } catch (Throwable $e) {
@@ -272,7 +277,7 @@ $bot->onCommand('bind', function (Nutgram $bot) {
     }
 })->description('Отслеживать лендинг (3h снэпшоты)');
 
-$bot->onCommand('unbind', function (Nutgram $bot) {
+$command('unbind', function (Nutgram $bot) {
     try {
         H::unbind($bot, H::args($bot));
     } catch (Throwable $e) {
@@ -280,7 +285,7 @@ $bot->onCommand('unbind', function (Nutgram $bot) {
     }
 })->description('Перестать отслеживать');
 
-$bot->onCommand('bindings', function (Nutgram $bot) {
+$command('bindings', function (Nutgram $bot) {
     try {
         H::bindingsList($bot);
     } catch (Throwable $e) {
@@ -288,7 +293,7 @@ $bot->onCommand('bindings', function (Nutgram $bot) {
     }
 })->description('Список моих биндингов');
 
-$bot->onCommand('mvt', function (Nutgram $bot) {
+$command('mvt', function (Nutgram $bot) {
     try {
         H::mvtStatus($bot, H::args($bot));
     } catch (Throwable $e) {
@@ -296,7 +301,7 @@ $bot->onCommand('mvt', function (Nutgram $bot) {
     }
 })->description('Последний снэпшот лендинга');
 
-$bot->onCommand('ai', function (Nutgram $bot) {
+$command('ai', function (Nutgram $bot) {
     $text = (string) ($bot->message()?->text ?? '');
     $question = trim((string) preg_replace('/^\/ai(@\S+)?\s*/u', '', $text));
 

@@ -91,6 +91,7 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
 $bot->onCommand('start', function (Nutgram $bot) {
     $bot->sendMessage(
         "👋 Привет! Я fa-stats-bot.\n\n".
+        "Открой <b>мини-апп</b> (/open) — там удобнее, чем команды.\n\n".
         "<b>Статы:</b>\n".
         "/stats &lt;alias&gt; [период]\n".
         "/compare &lt;alias…&gt; [период]\n\n".
@@ -106,8 +107,22 @@ $bot->onCommand('start', function (Nutgram $bot) {
         "/ai &lt;вопрос&gt; · /ping · /help\n\n".
         'Период: today, yesterday, 7d, 24h, week, month.',
         parse_mode: 'HTML',
+        reply_markup: \App\Support\TelegramHelpers::openMiniAppKeyboard(),
     );
 })->description('Стартовое сообщение');
+
+$bot->onCommand('open', function (Nutgram $bot) {
+    $keyboard = \App\Support\TelegramHelpers::openMiniAppKeyboard();
+    if ($keyboard === null) {
+        $bot->sendMessage('Mini App URL не настроен. Задай APP_URL в .env.');
+
+        return;
+    }
+    $bot->sendMessage(
+        '📱 Открыть приложение:',
+        reply_markup: $keyboard,
+    );
+})->description('Открыть мини-апп');
 
 $bot->onCommand('ping', function (Nutgram $bot) {
     $bot->sendMessage('pong 🏓');
@@ -115,6 +130,7 @@ $bot->onCommand('ping', function (Nutgram $bot) {
 
 $bot->onCommand('help', function (Nutgram $bot) {
     $bot->sendMessage(
+        "<b>Мини-апп:</b> /open\n\n".
         "<b>Статы:</b>\n".
         "/stats &lt;alias&gt; [период]\n".
         "/compare &lt;alias…&gt; [период]\n\n".

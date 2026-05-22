@@ -15,6 +15,9 @@ use App\Services\Tracking\LandingSnapshotComparer;
 use App\Services\Tracking\LandingSnapshotFormatter;
 use App\Services\Tracking\LandingUnbinder;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 use Throwable;
 
 /**
@@ -56,6 +59,32 @@ final class TelegramHelpers
         } catch (Throwable) {
             return [$args, null];
         }
+    }
+
+    /**
+     * Inline keyboard with a single "open Mini App" button. Returns null if
+     * APP_URL isn't set — callers should fall back to a plain text message.
+     */
+    public static function openMiniAppKeyboard(?string $label = null): ?InlineKeyboardMarkup
+    {
+        $appUrl = (string) config('app.url', '');
+        if ($appUrl === '') {
+            return null;
+        }
+        $url = rtrim($appUrl, '/').'/app';
+
+        // Telegram WebApp buttons require HTTPS. Skip in plain http to avoid
+        // confusing the user with a non-working button.
+        if (! str_starts_with($url, 'https://')) {
+            return null;
+        }
+
+        $button = InlineKeyboardButton::make(
+            text: $label ?? '📱 Открыть мини-апп',
+            web_app: WebAppInfo::make(url: $url),
+        );
+
+        return InlineKeyboardMarkup::make()->addRow($button);
     }
 
     public static function label(?string $alias, string $name, int $position): string

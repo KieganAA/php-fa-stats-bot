@@ -91,16 +91,21 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
 $bot->onCommand('start', function (Nutgram $bot) {
     $bot->sendMessage(
         "👋 Привет! Я fa-stats-bot.\n\n".
-        "Команды:\n".
-        "/stats <alias> [период] — метрики лендинга\n".
-        "/compare <alias…> [период] — сравнить лендинги\n".
-        "/alias add <name> <id> [pos] — привязать алиас\n".
-        "/alias list — список алиасов\n".
-        "/alias rm <name> — удалить алиас\n".
-        "/ai <вопрос> — свободный запрос (Claude Haiku)\n".
-        "/ping — проверка связи\n".
-        "/help — справка\n\n".
-        'Период: today (по умолчанию), yesterday, 7d, 24h, week, month.'
+        "<b>Статы:</b>\n".
+        "/stats &lt;alias&gt; [период]\n".
+        "/compare &lt;alias…&gt; [период]\n\n".
+        "<b>Алиасы:</b>\n".
+        "/alias add &lt;name&gt; &lt;id&gt; [pos]\n".
+        "/alias list · /alias rm &lt;name&gt;\n\n".
+        "<b>Мониторинг:</b>\n".
+        "/bind &lt;alias&gt; [silent] — отслеживать (пуш каждые 3ч)\n".
+        "/unbind &lt;alias&gt; — снять\n".
+        "/bindings — мои биндинги\n".
+        "/mvt &lt;alias&gt; — последний снэпшот\n\n".
+        "<b>AI и сервис:</b>\n".
+        "/ai &lt;вопрос&gt; · /ping · /help\n\n".
+        'Период: today, yesterday, 7d, 24h, week, month.',
+        parse_mode: 'HTML',
     );
 })->description('Стартовое сообщение');
 
@@ -110,12 +115,20 @@ $bot->onCommand('ping', function (Nutgram $bot) {
 
 $bot->onCommand('help', function (Nutgram $bot) {
     $bot->sendMessage(
-        "Команды:\n".
-        "/stats <alias> [период]\n".
-        "/compare <alias…> [период]\n".
-        "/alias add|list|rm\n".
-        "/ai <вопрос> — свободный запрос\n\n".
-        'Период: today | yesterday | 7d | 24h | week | month.'
+        "<b>Статы:</b>\n".
+        "/stats &lt;alias&gt; [период]\n".
+        "/compare &lt;alias…&gt; [период]\n\n".
+        "<b>Алиасы:</b>\n".
+        "/alias add &lt;name&gt; &lt;id&gt; [pos]\n".
+        "/alias list · /alias rm\n\n".
+        "<b>Мониторинг:</b>\n".
+        "/bind &lt;alias&gt; [silent]\n".
+        "/unbind &lt;alias&gt;\n".
+        "/bindings\n".
+        "/mvt &lt;alias&gt;\n\n".
+        "<b>AI:</b> /ai &lt;вопрос&gt;\n\n".
+        'Период: today | yesterday | 7d | 24h | week | month.',
+        parse_mode: 'HTML',
     );
 })->description('Справка');
 
@@ -234,6 +247,38 @@ $bot->onCommand('compare', function (Nutgram $bot) {
         $bot->sendMessage('Ошибка: '.$e->getMessage());
     }
 })->description('Сравнить лендинги');
+
+$bot->onCommand('bind', function (Nutgram $bot) {
+    try {
+        H::bind($bot, H::args($bot));
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Отслеживать лендинг (3h снэпшоты)');
+
+$bot->onCommand('unbind', function (Nutgram $bot) {
+    try {
+        H::unbind($bot, H::args($bot));
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Перестать отслеживать');
+
+$bot->onCommand('bindings', function (Nutgram $bot) {
+    try {
+        H::bindingsList($bot);
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Список моих биндингов');
+
+$bot->onCommand('mvt', function (Nutgram $bot) {
+    try {
+        H::mvtStatus($bot, H::args($bot));
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Последний снэпшот лендинга');
 
 $bot->onCommand('ai', function (Nutgram $bot) {
     $text = (string) ($bot->message()?->text ?? '');

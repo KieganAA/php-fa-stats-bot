@@ -63,6 +63,13 @@ openssl rand -hex 24   # → DB_PASSWORD
 docker compose build
 docker compose run --rm app composer install --no-dev --optimize-autoloader
 docker compose run --rm app php artisan key:generate
+
+# Mini App assets — built once, served as static files from public/build/.
+# Node lives on the host (no node in the production image), so install + build
+# from the working directory:
+npm ci
+npm run build
+
 docker compose up -d
 docker compose exec app php artisan migrate --force
 docker compose exec app php artisan config:cache
@@ -76,6 +83,8 @@ Verify:
 docker compose ps
 curl -sf http://127.0.0.1:8000/health | jq
 # {"ok":true,"components":{"database":{"ok":true},"redis":{"ok":true}}}
+curl -sI http://127.0.0.1:8000/app | head -1
+# HTTP/1.1 200 OK  ← Mini App shell renders
 ```
 
 ## 4. TLS
@@ -110,7 +119,7 @@ bot.example.com {
 
 Use this if you already run a reverse proxy on the box, or if you want to share TLS with other services.
 
-## 5. Register the Telegram webhook
+## 5. Register the Telegram webhook + Mini App
 
 ```bash
 docker compose exec app php artisan nutgram:hook:set
@@ -125,7 +134,20 @@ Register the slash-command menu (one-off):
 docker compose exec app php artisan nutgram:register-commands
 ```
 
-Smoke test from your phone: `/ping` → `pong 🏓`.
+Wire up the bot's menu button (the icon next to the message field) to open the Mini App:
+
+```bash
+docker compose exec app php artisan tg:set-menu-button
+# uses APP_URL/app — pass --url to override
+```
+
+Telegram requires HTTPS for Mini App URLs — the command refuses if `APP_URL` is non-HTTPS.
+
+Smoke test from your phone:
+- `/ping` → `pong 🏓`
+- `/open` → tap → Mini App opens, lists your aliases / bindings
+
+The Mini App authenticates each `/api/v1/*` request by verifying `initData` HMAC against `TELEGRAM_TOKEN`. If verification ever fails after a token rotation, force-close the Mini App from Telegram (Settings → Telegram → Mini Apps) — the cached old token is the usual culprit.
 
 ## 6. Monitoring
 
@@ -140,6 +162,7 @@ cd /opt/fa-stats-bot
 git pull
 docker compose build app
 docker compose run --rm app composer install --no-dev --optimize-autoloader
+npm ci && npm run build               # only if resources/js or resources/css changed
 docker compose exec app php artisan migrate --force
 docker compose exec app php artisan config:cache route:cache event:cache
 docker compose up -d app worker scheduler
@@ -173,6 +196,8 @@ Redis holds rate-limit windows and AIO response cache — disposable. No backup 
 | `/health` returns 503 with `database.ok: false` | Postgres down or migration failed | `docker compose ps`, `docker compose logs postgres` |
 | 403 on `/telegram/webhook` from real Telegram | Secret drift between `.env` and registered webhook | re-run `nutgram:hook:set` |
 | Container restart loop after deploy | Stale cached config | `php artisan config:clear && config:cache` |
+| Mini App shows blank / 401 from `/api/v1/me` | `TELEGRAM_TOKEN` not yet loaded into the container, or token rotated | `docker compose exec app php artisan config:cache` then force-close Mini App in Telegram |
+| Mini App page loads but no styles | Forgot `npm run build` after a `git pull` | run it, then `octane:reload` |
 
 ## 10. External resources
 

@@ -108,6 +108,10 @@ $command('start', function (Nutgram $bot) {
         "<b>Compare:</b>\n".
         "/compare 33169 205215 — два прокла рядом + Δ%\n".
         "/compare DK BR за неделю — две страны\n\n".
+        "<b>Группы (3h-пуш с compare):</b>\n".
+        "/bind 33169 205215 my-test — забиндить пару\n".
+        "/groups — мои группы\n".
+        "/unbind my-test — снять\n\n".
         "<b>Свободно:</b>\n".
         "/ai &lt;вопрос&gt; — спроси словами, я разберусь\n\n".
         "<b>Сервис:</b>\n".
@@ -136,6 +140,9 @@ $command('help', function (Nutgram $bot) {
         "<b>Статы:</b>\n".
         "/stats &lt;примитив&gt; [период]\n".
         "/compare &lt;a&gt; &lt;b&gt; [...] [период]\n\n".
+        "<b>Группы (3h-пуш):</b>\n".
+        "/bind &lt;id1&gt; &lt;id2&gt; [name]\n".
+        "/groups · /unbind &lt;name&gt;\n\n".
         "Примитив — что угодно из:\n".
         "• Код страны (DK, BR, IT, US…)\n".
         "• human_id лендинга (33169, 205228…)\n".
@@ -189,6 +196,30 @@ $command('stats', function (Nutgram $bot) {
         $bot->sendMessage('Ошибка: '.$e->getMessage());
     }
 })->description('Метрики (страна, кампания, …)');
+
+$command('bind', function (Nutgram $bot) {
+    try {
+        H::bind($bot, H::args($bot));
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Забиндить группу лендингов (3h compare push)');
+
+$command('groups', function (Nutgram $bot) {
+    try {
+        H::groupsList($bot);
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Мои compare-группы');
+
+$command('unbind', function (Nutgram $bot) {
+    try {
+        H::unbind($bot, H::args($bot));
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Снять группу');
 
 $command('compare', function (Nutgram $bot) {
     $args = H::args($bot);

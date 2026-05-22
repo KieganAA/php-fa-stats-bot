@@ -61,9 +61,9 @@ class User extends Authenticatable
         return '…'.substr($k, -4);
     }
 
-    public function bindings(): HasMany
+    public function compareGroups(): HasMany
     {
-        return $this->hasMany(UserLandingBinding::class);
+        return $this->hasMany(UserCompareGroup::class);
     }
 
     public function displayName(): string

@@ -2,33 +2,60 @@
 
 namespace App\Console\Commands\Tracking;
 
-use App\Jobs\NotifyLandingSnapshotJob;
+use App\Jobs\NotifyCompareGroupJob;
 use App\Models\LandingSnapshot;
 use App\Models\TrackedLanding;
+use App\Models\UserCompareGroup;
 use App\Services\Tracking\LandingSnapshotter;
 use Illuminate\Console\Command;
 use Throwable;
 
+/**
+ * Periodic 3h tick:
+ *   1. Capture an aggregate snapshot for every active tracked landing
+ *      (useful for trend history; not strictly required for notifications).
+ *   2. Dispatch a NotifyCompareGroupJob per active compare group — the job
+ *      itself rebuilds the compare report via live AIO calls.
+ *
+ * Snapshot capture stays even if no one subscribed via compare groups, so
+ * we accumulate history for the eventual "drilldown" / Mini App charting
+ * surface.
+ */
 class SnapshotCommand extends Command
 {
     protected $signature = 'tracking:snapshot
         {--id=* : restrict to specific tracked_landings.id values}
-        {--kind=both : 3h | since_start | both}
-        {--no-notify : capture only, do not dispatch notify jobs}';
+        {--kind=3h : 3h | since_start | both}
+        {--no-capture : skip snapshot capture (dispatch notify jobs only)}
+        {--no-notify : capture only, skip dispatch}';
 
-    protected $description = 'Capture aggregate snapshots for active tracked landings and fan out notifications to subscribers.';
+    protected $description = 'Capture aggregate snapshots and fan out compare-group notifications.';
 
     public function handle(LandingSnapshotter $snapshotter): int
+    {
+        $captureFailures = 0;
+
+        if (! $this->option('no-capture')) {
+            $captureFailures = $this->captureSnapshots($snapshotter);
+        }
+
+        if (! $this->option('no-notify')) {
+            $this->fanOutCompareGroups();
+        }
+
+        return $captureFailures === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function captureSnapshots(LandingSnapshotter $snapshotter): int
     {
         $tracked = $this->loadTargets();
         if ($tracked->isEmpty()) {
             $this->info('No active tracked landings.');
 
-            return self::SUCCESS;
+            return 0;
         }
 
         $kindOpt = (string) $this->option('kind');
-        $notify = ! $this->option('no-notify');
         $failures = 0;
 
         foreach ($tracked as $landing) {
@@ -36,11 +63,8 @@ class SnapshotCommand extends Command
             $this->line("→ snapshot {$label}");
             try {
                 $snapshots = $this->captureForKind($snapshotter, $landing, $kindOpt);
-                foreach ($snapshots as $snapshot) {
-                    $this->info("  {$snapshot->kind} snapshot #{$snapshot->id}");
-                    if ($notify) {
-                        $this->fanOut($snapshot, $landing);
-                    }
+                foreach ($snapshots as $s) {
+                    $this->info("  {$s->kind} snapshot #{$s->id}");
                 }
             } catch (Throwable $e) {
                 $failures++;
@@ -49,7 +73,20 @@ class SnapshotCommand extends Command
             }
         }
 
-        return $failures === 0 ? self::SUCCESS : self::FAILURE;
+        return $failures;
+    }
+
+    private function fanOutCompareGroups(): void
+    {
+        $groups = UserCompareGroup::query()
+            ->whereNull('paused_at')
+            ->has('members', '>=', 2)
+            ->get();
+
+        foreach ($groups as $g) {
+            NotifyCompareGroupJob::dispatch((int) $g->user_id, (int) $g->id);
+        }
+        $this->info('Dispatched compare-group jobs: '.$groups->count());
     }
 
     /** @return list<LandingSnapshot> */
@@ -61,19 +98,6 @@ class SnapshotCommand extends Command
             'both' => $snapshotter->captureBoth($landing),
             default => throw new \InvalidArgumentException("Unknown kind: {$kind}"),
         };
-    }
-
-    private function fanOut(LandingSnapshot $snapshot, TrackedLanding $landing): void
-    {
-        $column = $snapshot->kind === LandingSnapshot::KIND_SINCE_START
-            ? 'notify_since_start'
-            : 'notify_3h';
-
-        $userIds = $landing->bindings()->where($column, true)->pluck('user_id');
-        foreach ($userIds as $userId) {
-            NotifyLandingSnapshotJob::dispatch((int) $userId, (int) $snapshot->id);
-        }
-        $this->line('  dispatched '.$userIds->count().' notify jobs');
     }
 
     private function loadTargets()

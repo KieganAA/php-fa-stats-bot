@@ -2,13 +2,14 @@
 
 namespace Tests\Feature\Tracking;
 
-use App\Jobs\NotifyLandingSnapshotJob;
+use App\Jobs\NotifyCompareGroupJob;
+use App\Models\Aio\Landing;
 use App\Models\LandingSnapshot;
 use App\Models\TrackedLanding;
 use App\Models\User;
-use App\Models\UserLandingBinding;
 use App\Services\Aio\Dto\PivotResponse;
 use App\Services\Aio\Pivot\LandingReports;
+use App\Services\Tracking\CompareGroupBinder;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -19,48 +20,61 @@ class SnapshotCommandTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_captures_snapshots_and_fans_out_jobs_per_subscriber(): void
+    public function test_captures_snapshots_for_active_landings_and_fans_out_groups(): void
     {
         Queue::fake();
         $this->seedTargetMetrics();
         $this->stubLandingReports();
 
-        $alice = User::factory()->telegram('1')->create();
-        $bob = User::factory()->telegram('2')->create();
-        $tracked = TrackedLanding::query()->create([
-            'landing_uuid' => 'lp-1',
-            'position' => 1,
-            'tracking_started_at' => CarbonImmutable::now()->subDay(),
-        ]);
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+        $b = $this->seedLanding(2);
 
-        UserLandingBinding::create(['user_id' => $alice->id, 'tracked_landing_id' => $tracked->id, 'notify_3h' => true]);
-        UserLandingBinding::create(['user_id' => $bob->id, 'tracked_landing_id' => $tracked->id, 'notify_3h' => true, 'notify_since_start' => true]);
+        app(CompareGroupBinder::class)->bind($user, [$a, $b], name: 'pair');
 
-        $this->artisan('tracking:snapshot', ['--kind' => 'both'])->assertSuccessful();
+        $this->artisan('tracking:snapshot')->assertSuccessful();
 
-        // 2 snapshots captured (3h + since_start).
-        $this->assertSame(2, LandingSnapshot::query()->count());
-
-        // 3 notify jobs: 2 subscribers × 3h, plus 1 since_start (only Bob).
-        Queue::assertPushed(NotifyLandingSnapshotJob::class, 3);
+        $this->assertSame(2, LandingSnapshot::query()->count(), 'one snapshot per tracked landing');
+        Queue::assertPushed(NotifyCompareGroupJob::class, 1);
     }
 
-    public function test_skips_paused_tracked_landings(): void
+    public function test_skips_paused_tracked_landings_and_groups(): void
     {
         Queue::fake();
         $this->seedTargetMetrics();
         $this->stubLandingReports();
 
-        TrackedLanding::query()->create([
-            'landing_uuid' => 'lp-1',
-            'position' => 1,
-            'tracking_started_at' => CarbonImmutable::now()->subDay(),
-            'paused_at' => CarbonImmutable::now()->subHour(),
-        ]);
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+        $b = $this->seedLanding(2);
+        $group = app(CompareGroupBinder::class)->bind($user, [$a, $b]);
+
+        // Pause the group + tracked_landings
+        $group->paused_at = CarbonImmutable::now();
+        $group->save();
+        TrackedLanding::query()->update(['paused_at' => CarbonImmutable::now()]);
 
         $this->artisan('tracking:snapshot')->assertSuccessful();
 
         $this->assertSame(0, LandingSnapshot::query()->count());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_skips_groups_with_fewer_than_two_members(): void
+    {
+        Queue::fake();
+        $this->seedTargetMetrics();
+        $this->stubLandingReports();
+
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+        // A solo group — no compare to make.
+        app(CompareGroupBinder::class)->bind($user, [$a], name: 'solo');
+
+        $this->artisan('tracking:snapshot')->assertSuccessful();
+
+        // Snapshot still captured (history), but no notify job.
+        $this->assertSame(1, LandingSnapshot::query()->count());
         Queue::assertNothingPushed();
     }
 
@@ -69,17 +83,14 @@ class SnapshotCommandTest extends TestCase
         Queue::fake();
         $this->seedTargetMetrics();
         $this->stubLandingReports();
+
         $user = User::factory()->telegram('1')->create();
-        $tracked = TrackedLanding::query()->create([
-            'landing_uuid' => 'lp-1',
-            'position' => 1,
-            'tracking_started_at' => CarbonImmutable::now()->subDay(),
-        ]);
-        UserLandingBinding::create(['user_id' => $user->id, 'tracked_landing_id' => $tracked->id, 'notify_3h' => true]);
+        $a = $this->seedLanding(1);
+        $b = $this->seedLanding(2);
+        app(CompareGroupBinder::class)->bind($user, [$a, $b]);
 
         $this->artisan('tracking:snapshot', ['--no-notify' => true])->assertSuccessful();
 
-        $this->assertSame(2, LandingSnapshot::query()->count());
         Queue::assertNothingPushed();
     }
 
@@ -87,10 +98,27 @@ class SnapshotCommandTest extends TestCase
     {
         $reports = Mockery::mock(LandingReports::class);
         $reports->shouldReceive('landingStats')->andReturn(new PivotResponse(
-            rows: [['dimensions' => ['group_0' => 'lp-1'], 'metrics' => ['clicks-uuid' => 50]]],
+            rows: [['dimensions' => ['group_0' => 'lp-1'], 'metrics' => ['clicks-uuid' => 10]]],
             raw: [],
         ));
         $this->app->instance(LandingReports::class, $reports);
+    }
+
+    private function seedLanding(int $humanId): Landing
+    {
+        return Landing::query()->create([
+            'uuid' => "uuid-{$humanId}",
+            'human_id' => $humanId,
+            'name' => "L{$humanId}",
+            'landing_type_uuid' => 'lt',
+            'landing_type_name' => 'White 2.0',
+            'owner_uuid' => 'o',
+            'owner_name' => 'owner',
+            'countries' => ['IT'],
+            'is_archived' => false,
+            'raw' => [],
+            'synced_at' => now(),
+        ]);
     }
 
     private function seedTargetMetrics(): void

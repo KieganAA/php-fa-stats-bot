@@ -43,9 +43,9 @@ class TrackedLanding extends Model
         return $this->hasMany(LandingSnapshot::class);
     }
 
-    public function bindings(): HasMany
+    public function compareMemberships(): HasMany
     {
-        return $this->hasMany(UserLandingBinding::class);
+        return $this->hasMany(UserCompareGroupLanding::class);
     }
 
     public function isActive(): bool

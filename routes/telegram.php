@@ -6,6 +6,7 @@ use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Auth\AppContext;
 use App\Services\Auth\TelegramUserResolver;
+use App\Services\Stats\ComparisonReporter;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\PrimitiveResolver;
 use App\Services\Stats\StatsFormatter;
@@ -104,6 +105,9 @@ $command('start', function (Nutgram $bot) {
         "/stats 33169 — прокл по human_id\n".
         "/stats 33169 за неделю — он же за 7 дней\n".
         "/stats BR 7d — BR за последние 7 дней\n\n".
+        "<b>Compare:</b>\n".
+        "/compare 33169 205215 — два прокла рядом + Δ%\n".
+        "/compare DK BR за неделю — две страны\n\n".
         "<b>Свободно:</b>\n".
         "/ai &lt;вопрос&gt; — спроси словами, я разберусь\n\n".
         "<b>Сервис:</b>\n".
@@ -130,7 +134,8 @@ $command('ping', function (Nutgram $bot) {
 $command('help', function (Nutgram $bot) {
     $bot->sendMessage(
         "<b>Статы:</b>\n".
-        "/stats &lt;примитив&gt; [период]\n\n".
+        "/stats &lt;примитив&gt; [период]\n".
+        "/compare &lt;a&gt; &lt;b&gt; [...] [период]\n\n".
         "Примитив — что угодно из:\n".
         "• Код страны (DK, BR, IT, US…)\n".
         "• human_id лендинга (33169, 205228…)\n".
@@ -184,6 +189,30 @@ $command('stats', function (Nutgram $bot) {
         $bot->sendMessage('Ошибка: '.$e->getMessage());
     }
 })->description('Метрики (страна, кампания, …)');
+
+$command('compare', function (Nutgram $bot) {
+    $args = H::args($bot);
+    if (count($args) < 2) {
+        $bot->sendMessage('Использование: /compare <id|страна> <id|страна> [...] [период]');
+
+        return;
+    }
+
+    [$tokens, $period] = H::splitPeriod($args);
+    if (count($tokens) < 2) {
+        $bot->sendMessage('Нужно минимум 2 примитива.');
+
+        return;
+    }
+
+    try {
+        $window = app(PeriodParser::class)->parse($period);
+        $html = app(ComparisonReporter::class)->report($tokens, $window);
+        $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
+    } catch (Throwable $e) {
+        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    }
+})->description('Сравнить N лендов / стран');
 
 $command('ai', function (Nutgram $bot) {
     $text = (string) ($bot->message()?->text ?? '');

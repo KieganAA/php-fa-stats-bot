@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
+use App\Services\Stats\ComparisonReporter;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\PrimitiveResolver;
 use App\Services\Stats\StatsFormatter;
@@ -14,10 +15,6 @@ use RuntimeException;
  *
  * Each tool returns a Telegram-HTML string (same format as the slash command)
  * so the LLM can echo it back verbatim or layer a short comment around it.
- *
- * Phase K shape: one tool — stats by primitive. The compare / list_aliases /
- * mvt_status tools were removed alongside the alias concept. Phase L/M/N
- * will reintroduce richer tools (compare across primitives, drilldowns).
  */
 class ToolCatalog
 {
@@ -27,6 +24,7 @@ class ToolCatalog
         private readonly LandingReports $reports,
         private readonly TargetMetricSet $targets,
         private readonly StatsFormatter $formatter,
+        private readonly ComparisonReporter $comparisons,
     ) {}
 
     /**
@@ -37,7 +35,7 @@ class ToolCatalog
         return [
             [
                 'name' => 'stats',
-                'description' => 'Get totals for an AIO slice. Call whenever the user asks about a country, a specific landing (by numeric ID), or its UUID.',
+                'description' => 'Get totals for one AIO slice. Use for a country, a specific landing (numeric ID), or a UUID.',
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -47,10 +45,30 @@ class ToolCatalog
                         ],
                         'period' => [
                             'type' => 'string',
-                            'description' => 'Period: today (default), yesterday, week, month, last week, last month, or N{h,d,w,m}. Russian also works: сегодня, вчера, неделя, месяц, "3 дня", "7 часов".',
+                            'description' => 'Period: today (default), yesterday, week, month, last week, last month, or N{h,d,w,m}. Russian works too: сегодня, вчера, неделя, месяц, "3 дня", "7 часов".',
                         ],
                     ],
                     'required' => ['primitive'],
+                ],
+            ],
+            [
+                'name' => 'compare',
+                'description' => 'Compare 2+ AIO slices side-by-side with Δ%. All primitives must be the same kind (only landings, or only countries). For two-slice queries the response includes a delta column vs the first.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'primitives' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'List of 2+ primitives, all of the same kind. Example: ["33169","205215"] or ["DK","BR"].',
+                            'minItems' => 2,
+                        ],
+                        'period' => [
+                            'type' => 'string',
+                            'description' => 'Same syntax as stats.period.',
+                        ],
+                    ],
+                    'required' => ['primitives'],
                 ],
             ],
         ];
@@ -64,6 +82,10 @@ class ToolCatalog
         return match ($name) {
             'stats' => $this->stats(
                 (string) ($input['primitive'] ?? ''),
+                $input['period'] ?? null,
+            ),
+            'compare' => $this->compare(
+                (array) ($input['primitives'] ?? []),
                 $input['period'] ?? null,
             ),
             default => throw new RuntimeException("Unknown tool: {$name}"),
@@ -89,5 +111,21 @@ class ToolCatalog
         return $this->formatter->format($window, [
             ['label' => $resolved['label'], 'metrics' => $projected],
         ]);
+    }
+
+    /** @param  array<int|string, mixed>  $primitives */
+    private function compare(array $primitives, ?string $period): string
+    {
+        $tokens = array_values(array_filter(
+            array_map(fn ($p) => is_string($p) ? trim($p) : '', $primitives),
+            fn ($t) => $t !== '',
+        ));
+        if (count($tokens) < 2) {
+            throw new RuntimeException('compare нуждается минимум в 2 примитивах.');
+        }
+
+        $window = $this->periods->parse(is_string($period) ? $period : null);
+
+        return $this->comparisons->report($tokens, $window);
     }
 }

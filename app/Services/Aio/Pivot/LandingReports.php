@@ -59,6 +59,30 @@ class LandingReports
         return $this->aio->pivotReport($body, heavy: $heavy);
     }
 
+    /**
+     * Compare N primitives that share the same AIO dimension key (countries,
+     * landings at the same position, …). One AIO call, grouped by the key,
+     * returning one row per value found.
+     *
+     * @param  list<string>  $filterValues
+     */
+    public function compareByPrimitive(
+        string $filterKey,
+        array $filterValues,
+        DateTimeInterface|string $from,
+        DateTimeInterface|string $to,
+        string $timezone = 'UTC',
+        bool $heavy = false,
+    ): PivotResponse {
+        $body = PivotRequest::create()
+            ->dates($from, $to, $timezone)
+            ->filter($filterKey, $filterValues)
+            ->groupBy($filterKey)
+            ->toArray();
+
+        return $this->aio->pivotReport($body, heavy: $heavy);
+    }
+
     /** @param  list<string>  $landingUuids */
     public function compareLandings(
         array $landingUuids,

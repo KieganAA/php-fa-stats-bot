@@ -20,7 +20,7 @@ class ToolCatalogTest extends TestCase
 
         $names = array_map(fn ($d) => $d['name'], $catalog->definitions());
 
-        $this->assertSame(['stats'], $names);
+        $this->assertSame(['stats', 'compare'], $names);
         foreach ($catalog->definitions() as $def) {
             $this->assertArrayHasKey('description', $def);
             $this->assertSame('object', $def['input_schema']['type']);

@@ -18,7 +18,15 @@ use App\Models\Aio\Landing;
  */
 final class LandingFormatter
 {
-    /** Compact one-line label for tight UI (e.g. report header). */
+    /**
+     * Compact one-line label for tight UI (report headers, list rows).
+     *
+     * Owner is intentionally NOT in the line — `aio_landings.owner_name` is
+     * who *created* the landing, not who's currently driving traffic to it.
+     * That distinction matters: media buyers want "who's running this LP?",
+     * which lives on the campaign side (campaign_owner_uuid). Showing the
+     * creator alongside per-LP metrics misleads.
+     */
     public function shortLine(Landing $landing): string
     {
         $bits = ['#'.$landing->human_id];
@@ -28,9 +36,6 @@ final class LandingFormatter
         }
         if ($country = $this->firstCountry($landing)) {
             $bits[] = $country;
-        }
-        if ($landing->owner_name) {
-            $bits[] = '@'.$landing->owner_name;
         }
 
         $line = implode(' · ', $bits);

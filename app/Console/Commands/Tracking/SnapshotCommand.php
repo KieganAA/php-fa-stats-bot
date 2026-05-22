@@ -78,15 +78,17 @@ class SnapshotCommand extends Command
 
     private function fanOutCompareGroups(): void
     {
+        // All active groups with at least one member. The job itself
+        // branches on group.mode (compare / mvt) — see NotifyCompareGroupJob.
         $groups = UserCompareGroup::query()
             ->whereNull('paused_at')
-            ->has('members', '>=', 2)
+            ->has('members', '>=', 1)
             ->get();
 
         foreach ($groups as $g) {
             NotifyCompareGroupJob::dispatch((int) $g->user_id, (int) $g->id);
         }
-        $this->info('Dispatched compare-group jobs: '.$groups->count());
+        $this->info('Dispatched tracking-group jobs: '.$groups->count());
     }
 
     /** @return list<LandingSnapshot> */

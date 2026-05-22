@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Models\User;
 use App\Models\UserCompareGroup;
 use App\Services\Stats\ComparisonReporter;
+use App\Services\Stats\MvtFormatter;
+use App\Services\Stats\MvtReporter;
 use App\Services\Stats\PeriodParser;
 use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
@@ -17,9 +19,14 @@ use SergiX44\Nutgram\Nutgram;
 use Throwable;
 
 /**
- * Periodic 3h compare report for one user's compare group. Re-uses the same
- * ComparisonReporter that powers the ad-hoc /compare command — single source
- * of truth for what "compare" looks like.
+ * Periodic 3h tracking-group push.
+ *
+ * Branches on group mode:
+ *   - 'compare' → ComparisonReporter (same path as /compare)
+ *   - 'mvt'     → MvtReporter (same path as /mvt)
+ *
+ * Both reporters live elsewhere; this job just wires them to Telegram delivery
+ * + last_notified_at bookkeeping.
  */
 class NotifyCompareGroupJob implements ShouldQueue
 {
@@ -36,7 +43,9 @@ class NotifyCompareGroupJob implements ShouldQueue
 
     public function handle(
         Nutgram $bot,
-        ComparisonReporter $reporter,
+        ComparisonReporter $compare,
+        MvtReporter $mvt,
+        MvtFormatter $mvtFormatter,
         PeriodParser $periods,
     ): void {
         $user = User::query()->find($this->userId);
@@ -54,44 +63,69 @@ class NotifyCompareGroupJob implements ShouldQueue
             return;
         }
 
+        $window = $periods->parse('3h', $user->timezone);
+        $html = null;
+
+        try {
+            $html = match ($group->mode ?? UserCompareGroup::MODE_COMPARE) {
+                UserCompareGroup::MODE_MVT => $this->renderMvt($group, $window, $mvt, $mvtFormatter),
+                default => $this->renderCompare($group, $window, $compare),
+            };
+        } catch (Throwable $e) {
+            Log::warning('tracking-group notify failed', [
+                'user_id' => $this->userId,
+                'group_id' => $this->groupId,
+                'mode' => $group->mode,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+
+        if ($html === null) {
+            return;
+        }
+
+        $header = "<b>🔔 group <code>{$this->escape($group->name)}</code></b>\n";
+        $bot->sendMessage(
+            text: $header.$html,
+            chat_id: (int) $user->telegram_user_id,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+        );
+
+        $group->last_notified_at = CarbonImmutable::now();
+        $group->save();
+    }
+
+    private function renderCompare(UserCompareGroup $group, array $window, ComparisonReporter $compare): ?string
+    {
         $tokens = [];
         foreach ($group->members as $m) {
             $landing = $m->trackedLanding?->landing;
             if ($landing === null) {
                 continue;
             }
-            // Prefer human_id (what the user typed). Fall back to uuid.
             $tokens[] = $landing->human_id !== null ? (string) $landing->human_id : $landing->uuid;
         }
-
         if (count($tokens) < 2) {
-            // Single-member groups don't have a Δ% column worth showing — skip
-            // for now. (Future: route through stats instead of compare.)
-            return;
+            return null; // compare requires ≥2
         }
 
-        try {
-            $window = $periods->parse('3h', $user->timezone);
-            $html = $reporter->report($tokens, $window);
+        return $compare->report($tokens, $window);
+    }
 
-            $header = "<b>🔔 group <code>{$this->escape($group->name)}</code></b>\n";
-            $bot->sendMessage(
-                text: $header.$html,
-                chat_id: (int) $user->telegram_user_id,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true,
-            );
-
-            $group->last_notified_at = CarbonImmutable::now();
-            $group->save();
-        } catch (Throwable $e) {
-            Log::warning('compare group notify failed', [
-                'user_id' => $this->userId,
-                'group_id' => $this->groupId,
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
+    private function renderMvt(UserCompareGroup $group, array $window, MvtReporter $mvt, MvtFormatter $fmt): ?string
+    {
+        $member = $group->members->first();
+        $landing = $member?->trackedLanding?->landing;
+        if ($landing === null) {
+            return null;
         }
+
+        $position = (int) ($member->trackedLanding->position ?? 1);
+        $report = $mvt->report($landing, $window, $position);
+
+        return $fmt->format($report);
     }
 
     private function escape(string $s): string

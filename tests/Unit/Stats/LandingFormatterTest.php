@@ -18,7 +18,7 @@ class LandingFormatterTest extends TestCase
             countries: ['NO'],
         );
 
-        $this->assertSame('#33169 · Celeb Preland · NO · @zigi', (new LandingFormatter)->shortLine($landing));
+        $this->assertSame('#33169 · Celeb Preland · NO', (new LandingFormatter)->shortLine($landing));
     }
 
     public function test_short_line_marks_archived(): void

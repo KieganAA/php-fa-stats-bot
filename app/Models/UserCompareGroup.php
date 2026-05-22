@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UserCompareGroup extends Model
 {
+    public const MODE_COMPARE = 'compare';
+
+    public const MODE_MVT = 'mvt';
+
     protected $guarded = ['id'];
 
     protected $casts = [

@@ -103,6 +103,8 @@ $command('start', function (Nutgram $bot) {
         "<code>33169 за неделю</code>\n\n".
         "<b>Топы:</b>\n".
         "/geo · /buyers · /lps1 · /lps2 [период]\n\n".
+        "<b>MVT (разбивка по вариантам):</b>\n".
+        "/mvt 33169 [период]\n\n".
         "<b>Compare двух (с Δ%):</b>\n".
         "/compare 33169 205215\n".
         "/compare DK BR за неделю\n\n".
@@ -143,6 +145,8 @@ $command('help', function (Nutgram $bot) {
         "/geo [период] — все страны\n".
         "/buyers [период] — топ баеров\n".
         "/lps1 / /lps2 — топ лендов по позиции\n\n".
+        "<b>MVT-разбивка:</b>\n".
+        "/mvt &lt;id&gt; [период]\n\n".
         "<b>Группы (3h-пуш):</b>\n".
         "/bind &lt;id1&gt; &lt;id2&gt; [name]\n".
         "/groups · /unbind &lt;name&gt;\n\n".
@@ -192,6 +196,10 @@ $command('lps1', function (Nutgram $bot) {
 $command('lps2', function (Nutgram $bot) {
     H::runRanking($bot, 'lp2', H::args($bot));
 })->description('Топ лендингов на LP2');
+
+$command('mvt', function (Nutgram $bot) {
+    H::runMvt($bot, H::args($bot));
+})->description('MVT-разбивка по лендингу');
 
 $command('bind', function (Nutgram $bot) {
     try {

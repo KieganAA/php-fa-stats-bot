@@ -14,7 +14,7 @@ class CompareGroupBinderTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_creates_group_with_auto_name_and_tracked_landings(): void
+    public function test_two_landings_create_compare_mode_group(): void
     {
         $user = User::factory()->telegram('1')->create();
         $a = $this->seedLanding(33169);
@@ -23,9 +23,35 @@ class CompareGroupBinderTest extends TestCase
         $group = app(CompareGroupBinder::class)->bind($user, [$a, $b]);
 
         $this->assertSame('g1', $group->name);
+        $this->assertSame('compare', $group->mode);
         $this->assertSame($user->id, $group->user_id);
         $this->assertSame(2, $group->members()->count());
         $this->assertSame(2, TrackedLanding::query()->count());
+    }
+
+    public function test_single_landing_creates_mvt_mode_group(): void
+    {
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(33169);
+
+        $group = app(CompareGroupBinder::class)->bind($user, [$a]);
+
+        $this->assertSame('mvt', $group->mode);
+        $this->assertSame(1, $group->members()->count());
+    }
+
+    public function test_rebind_can_flip_mode_compare_to_mvt(): void
+    {
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+        $b = $this->seedLanding(2);
+
+        $compareGroup = app(CompareGroupBinder::class)->bind($user, [$a, $b], name: 'test');
+        $this->assertSame('compare', $compareGroup->mode);
+
+        $mvtGroup = app(CompareGroupBinder::class)->bind($user, [$a], name: 'test');
+        $this->assertSame('mvt', $mvtGroup->mode);
+        $this->assertSame($compareGroup->id, $mvtGroup->id, 'same group, mode updated in place');
     }
 
     public function test_auto_names_skip_used_indices(): void

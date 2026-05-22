@@ -30,14 +30,21 @@ final class CompareGroupBinder
             throw new RuntimeException('Нужен хотя бы один лендинг.');
         }
 
-        return DB::transaction(function () use ($user, $landings, $name, $position): UserCompareGroup {
+        // Mode policy: 1 landing → MVT (variant breakdown is the only thing
+        // worth periodic-pulsing for a solo lander). 2+ → compare (side-by-side
+        // is the only thing that makes sense for two creatives).
+        $mode = count($landings) === 1
+            ? UserCompareGroup::MODE_MVT
+            : UserCompareGroup::MODE_COMPARE;
+
+        return DB::transaction(function () use ($user, $landings, $name, $position, $mode): UserCompareGroup {
             $name = $name !== null && $name !== '' ? $name : $this->autoName($user);
 
             // If a group with this name already exists for this user — replace
             // its members. Keeps `/bind` idempotent for the same name.
             $group = UserCompareGroup::query()->updateOrCreate(
                 ['user_id' => $user->id, 'name' => $name],
-                ['paused_at' => null],
+                ['paused_at' => null, 'mode' => $mode],
             );
             $group->members()->delete();
 

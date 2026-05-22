@@ -42,7 +42,7 @@ class PrimitiveResolverTest extends TestCase
         $this->assertStringContainsString('#33169', $r['label']);
         $this->assertStringContainsString('Celeb Preland', $r['label']);
         $this->assertStringContainsString('NO', $r['label']);
-        $this->assertStringContainsString('@zigi', $r['label']);
+        $this->assertStringNotContainsString('@zigi', $r['label']);  // creator owner is not on LP labels
     }
 
     public function test_resolves_uuid_to_landing(): void

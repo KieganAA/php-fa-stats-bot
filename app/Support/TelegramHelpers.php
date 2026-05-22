@@ -9,6 +9,8 @@ use App\Services\Ai\AiHandler;
 use App\Services\Ai\AiRateLimiter;
 use App\Services\Auth\AppContext;
 use App\Services\Stats\LandingFormatter;
+use App\Services\Stats\MvtFormatter;
+use App\Services\Stats\MvtReporter;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\PrimitiveResolver;
 use App\Services\Stats\RankingReporter;
@@ -137,6 +139,44 @@ final class TelegramHelpers
     }
 
     /**
+     * /mvt <human_id|uuid> [period] — variant-by-variant breakdown of a single
+     * landing's MVT custom fields.
+     *
+     * @param  list<string>  $args
+     */
+    public static function runMvt(Nutgram $bot, array $args): void
+    {
+        if ($args === []) {
+            $bot->sendMessage('Использование: /mvt <id или uuid> [период]');
+
+            return;
+        }
+        $token = array_shift($args);
+        $period = $args !== [] ? implode(' ', $args) : null;
+
+        try {
+            $landing = null;
+            if (ctype_digit($token)) {
+                $landing = Landing::query()->where('human_id', (int) $token)->first();
+            } elseif (preg_match('/^[0-9a-f-]{36}$/i', $token)) {
+                $landing = Landing::query()->where('uuid', $token)->first();
+            }
+            if ($landing === null) {
+                $bot->sendMessage("Лендинг «{$token}» не найден.");
+
+                return;
+            }
+
+            $window = app(PeriodParser::class)->parse($period);
+            $report = app(MvtReporter::class)->report($landing, $window);
+            $html = app(MvtFormatter::class)->format($report);
+            $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
+        } catch (Throwable $e) {
+            $bot->sendMessage('Ошибка: '.$e->getMessage());
+        }
+    }
+
+    /**
      * Ranking command body — shared between /geo, /buyers, /lps1, /lps2.
      *
      * @param  list<string>  $args  pure period args (no token leading)
@@ -213,11 +253,9 @@ final class TelegramHelpers
                 $lines[] = '• '.htmlspecialchars($fmt->shortLine($m->trackedLanding->landing));
             }
         }
-        if (count($group->members) >= 2) {
-            $lines[] = "\n🔔 Каждые 3 часа будет приходить compare-отчёт.";
-        } else {
-            $lines[] = "\n💡 В группе один лендинг — для 3h-пуша добавь второй: /bind id ... ".htmlspecialchars($group->name);
-        }
+        $lines[] = count($group->members) >= 2
+            ? "\n🔔 3h-пуш: <b>compare</b> (Δ% между лендами)"
+            : "\n🔔 3h-пуш: <b>MVT</b> (разбивка по вариантам этого ленда)";
 
         $bot->sendMessage(implode("\n", $lines), parse_mode: 'HTML');
     }

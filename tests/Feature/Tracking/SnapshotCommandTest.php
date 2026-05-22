@@ -60,7 +60,7 @@ class SnapshotCommandTest extends TestCase
         Queue::assertNothingPushed();
     }
 
-    public function test_skips_groups_with_fewer_than_two_members(): void
+    public function test_dispatches_solo_groups_in_mvt_mode(): void
     {
         Queue::fake();
         $this->seedTargetMetrics();
@@ -68,14 +68,13 @@ class SnapshotCommandTest extends TestCase
 
         $user = User::factory()->telegram('1')->create();
         $a = $this->seedLanding(1);
-        // A solo group — no compare to make.
+        // A solo group — auto-tagged as mvt mode by the binder.
         app(CompareGroupBinder::class)->bind($user, [$a], name: 'solo');
 
         $this->artisan('tracking:snapshot')->assertSuccessful();
 
-        // Snapshot still captured (history), but no notify job.
         $this->assertSame(1, LandingSnapshot::query()->count());
-        Queue::assertNothingPushed();
+        Queue::assertPushed(NotifyCompareGroupJob::class, 1);
     }
 
     public function test_no_notify_flag_skips_dispatch(): void

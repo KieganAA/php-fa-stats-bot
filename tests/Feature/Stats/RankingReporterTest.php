@@ -77,8 +77,9 @@ class RankingReporterTest extends TestCase
 
         $this->assertStringContainsString('#33169', $html);
         $this->assertStringContainsString('Celeb Preland', $html);
-        $this->assertStringContainsString('@zigi', $html);
+        $this->assertStringContainsString('NO', $html);
         $this->assertStringContainsString('топ LP1', $html);
+        $this->assertStringNotContainsString('@zigi', $html);  // creator doesn't belong on LP rows
     }
 
     public function test_top_n_caps_results(): void

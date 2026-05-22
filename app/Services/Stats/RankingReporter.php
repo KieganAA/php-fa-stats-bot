@@ -120,7 +120,14 @@ final class RankingReporter
         return $out;
     }
 
-    /** @param  list<string>  $uuids @return array<string, string> */
+    /**
+     * Ranking tables get the *compact* landing label (#id · country) — the
+     * full short-line is too wide for a phone row with three metric columns
+     * next to it. Users tap /stats <id> for the full picture.
+     *
+     * @param  list<string>  $uuids
+     * @return array<string, string>
+     */
     private function batchLandings(array $uuids): array
     {
         $landings = Landing::query()->whereIn('uuid', $uuids)->get()->keyBy('uuid');
@@ -129,7 +136,7 @@ final class RankingReporter
         foreach ($uuids as $u) {
             $landing = $landings->get($u);
             $out[$u] = $landing !== null
-                ? $this->landingFmt->shortLine($landing)
+                ? $this->landingFmt->compactLine($landing)
                 : substr($u, 0, 8).'…';
         }
 

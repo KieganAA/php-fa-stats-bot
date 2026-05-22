@@ -19,6 +19,29 @@ use App\Models\Aio\Landing;
 final class LandingFormatter
 {
     /**
+     * Ultra-compact label for tight overview tables (`/lps1`, `/lps2`).
+     * Drops the type — in a ranking by position type tends to repeat, so it
+     * doesn't add info per row and just eats characters. Keep human_id +
+     * country + archived flag.
+     *
+     *   #205215 · IT
+     *   #33169 · NO (archived)
+     */
+    public function compactLine(Landing $landing): string
+    {
+        $bits = ['#'.$landing->human_id];
+        if ($country = $this->firstCountry($landing)) {
+            $bits[] = $country;
+        }
+        $line = implode(' · ', $bits);
+        if ($landing->is_archived) {
+            $line .= ' (a)';
+        }
+
+        return $line;
+    }
+
+    /**
      * Compact one-line label for tight UI (report headers, list rows).
      *
      * Owner is intentionally NOT in the line — `aio_landings.owner_name` is

@@ -96,7 +96,7 @@ class MvtReportFormatter
         $valueStr = \App\Services\Stats\MetricDisplay::format($name, $value);
         $deltaPart = $this->formatDelta($deltaPrior, $deltaSince);
 
-        return '<code>'.str_pad($label, 10).str_pad($valueStr, 10).'</code>'.$deltaPart;
+        return '<code>'.mb_str_pad($label, 10).mb_str_pad($valueStr, 10).'</code>'.$deltaPart;
     }
 
     private function formatDelta(?array $deltaPrior, ?array $deltaSince): string

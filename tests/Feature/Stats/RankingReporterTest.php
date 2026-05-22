@@ -76,7 +76,8 @@ class RankingReporterTest extends TestCase
         $html = app(RankingReporter::class)->report('lp1', $window);
 
         $this->assertStringContainsString('#33169', $html);
-        $this->assertStringContainsString('Celeb Preland', $html);
+        // Compact ranking label drops the type to keep rows phone-narrow.
+        $this->assertStringNotContainsString('Celeb Preland', $html);
         $this->assertStringContainsString('NO', $html);
         $this->assertStringContainsString('топ LP1', $html);
         $this->assertStringNotContainsString('@zigi', $html);  // creator doesn't belong on LP rows

@@ -58,12 +58,12 @@ final class ComparisonFormatter
         $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $names));
         $deltaWidth = 9;
 
-        $headerCols = str_pad('', $labelWidth);
+        $headerCols = mb_str_pad('', $labelWidth);
         foreach ($entries as $e) {
-            $headerCols .= str_pad($this->truncate($e['label'], $colWidth - 1), $colWidth);
+            $headerCols .= mb_str_pad($this->truncate($e['label'], $colWidth - 1), $colWidth);
         }
         if ($withDelta) {
-            $headerCols .= str_pad('Δ%', $deltaWidth);
+            $headerCols .= mb_str_pad('Δ%', $deltaWidth);
         }
         $lines = ["<code>{$this->escape(rtrim($headerCols))}</code>"];
 
@@ -71,13 +71,13 @@ final class ComparisonFormatter
         $right = $withDelta ? $entries[1]['metrics'] : null;
 
         foreach ($names as $name) {
-            $row = str_pad(MetricDisplay::label($name), $labelWidth);
+            $row = mb_str_pad(MetricDisplay::label($name), $labelWidth);
             foreach ($entries as $e) {
                 $v = $e['metrics'][$name] ?? null;
-                $row .= str_pad($this->truncate(MetricDisplay::format($name, $v), $colWidth - 1), $colWidth);
+                $row .= mb_str_pad($this->truncate(MetricDisplay::format($name, $v), $colWidth - 1), $colWidth);
             }
             if ($withDelta) {
-                $row .= str_pad($this->fmtDelta($left[$name] ?? null, $right[$name] ?? null), $deltaWidth);
+                $row .= mb_str_pad($this->fmtDelta($left[$name] ?? null, $right[$name] ?? null), $deltaWidth);
             }
             $lines[] = "<code>{$this->escape(rtrim($row))}</code>";
         }

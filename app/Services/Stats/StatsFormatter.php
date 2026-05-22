@@ -59,7 +59,7 @@ class StatsFormatter
             if (! array_key_exists($name, $entry['metrics'])) {
                 continue;
             }
-            $label = str_pad(MetricDisplay::label($name), $labelWidth);
+            $label = mb_str_pad(MetricDisplay::label($name), $labelWidth);
             $value = MetricDisplay::format($name, $entry['metrics'][$name]);
             $lines[] = "<code>{$label}{$value}</code>";
         }
@@ -80,19 +80,19 @@ class StatsFormatter
         $colWidth = min($colWidth, 20);
         $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $names));
 
-        $headerCols = str_pad('', $labelWidth);
+        $headerCols = mb_str_pad('', $labelWidth);
         foreach ($entries as $e) {
-            $headerCols .= str_pad($this->truncate($e['label'], $colWidth - 1), $colWidth);
+            $headerCols .= mb_str_pad($this->truncate($e['label'], $colWidth - 1), $colWidth);
         }
         $lines = ["<code>{$this->escape(rtrim($headerCols))}</code>"];
 
         foreach ($names as $name) {
-            $row = str_pad(MetricDisplay::label($name), $labelWidth);
+            $row = mb_str_pad(MetricDisplay::label($name), $labelWidth);
             foreach ($entries as $e) {
                 $value = array_key_exists($name, $e['metrics'])
                     ? MetricDisplay::format($name, $e['metrics'][$name])
                     : '—';
-                $row .= str_pad($this->truncate($value, $colWidth - 1), $colWidth);
+                $row .= mb_str_pad($this->truncate($value, $colWidth - 1), $colWidth);
             }
             $lines[] = "<code>{$this->escape(rtrim($row))}</code>";
         }

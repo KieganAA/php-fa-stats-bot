@@ -166,12 +166,42 @@ final class MetricDisplay
         return number_format($value, 2).'%';
     }
 
+    /**
+     * Compact integer formatting that fits in Telegram's mobile `<code>` width.
+     *
+     * 1234567 → "1.23M"   (was "1 234 567" = 9 chars, now 5)
+     * 12345   → "12.3K"   (was "12 345"    = 6 chars, now 5)
+     * 999     → "999"
+     *
+     * Fractional counts get one decimal at most. Keeps every cell narrow
+     * enough that 3-4 metric columns + label fit on a phone line without
+     * wrapping mid-row.
+     */
     private static function count(int|float $value): string
     {
-        if (is_int($value) || floor((float) $value) == $value) {
-            return number_format((int) $value, 0, '.', ' ');
+        $v = (float) $value;
+        $abs = abs($v);
+
+        if ($abs >= 1_000_000) {
+            return self::trimZeros(number_format($v / 1_000_000, 2)).'M';
+        }
+        if ($abs >= 10_000) {
+            return self::trimZeros(number_format($v / 1000, 1)).'K';
+        }
+        if (is_int($value) || floor($v) == $v) {
+            return (string) (int) $v;
         }
 
-        return number_format((float) $value, 2);
+        return self::trimZeros(number_format($v, 2));
+    }
+
+    private static function trimZeros(string $formatted): string
+    {
+        // "1.20" → "1.2"; "1.00" → "1"
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '' ? '0' : $formatted;
     }
 }

@@ -29,23 +29,26 @@ final class RankingFormatter
             return $header."\n\n<i>Не выбраны метрики.</i>";
         }
 
+        // Phone `<code>` wraps around ~40 chars. Budget per row:
+        //   #     <label>          metric1   metric2   metric3
+        //   3  +  18 (hard cap)  + 7       + 7       + 7    = ~42, just fits.
         $labelWidth = max(8, ...array_map(fn ($e) => mb_strlen($e['label']), $entries));
-        $labelWidth = min($labelWidth, 40);
+        $labelWidth = min($labelWidth, 18);
 
         $rankWidth = 4;
-        $colWidth = max(7, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 2, $shown));
+        $colWidth = max(7, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $shown));
 
-        $head = str_pad('#', $rankWidth).str_pad($kindHeader, $labelWidth + 1);
+        $head = mb_str_pad('#', $rankWidth).mb_str_pad($kindHeader, $labelWidth + 1);
         foreach ($shown as $name) {
-            $head .= str_pad(MetricDisplay::label($name), $colWidth);
+            $head .= mb_str_pad(MetricDisplay::label($name), $colWidth);
         }
         $lines = ["<code>{$this->escape(rtrim($head))}</code>"];
 
         foreach ($entries as $i => $e) {
-            $row = str_pad((string) ($i + 1).'.', $rankWidth);
-            $row .= str_pad($this->truncate($e['label'], $labelWidth), $labelWidth + 1);
+            $row = mb_str_pad((string) ($i + 1).'.', $rankWidth);
+            $row .= mb_str_pad($this->truncate($e['label'], $labelWidth), $labelWidth + 1);
             foreach ($shown as $name) {
-                $row .= str_pad(MetricDisplay::format($name, $e['metrics'][$name] ?? null), $colWidth);
+                $row .= mb_str_pad(MetricDisplay::format($name, $e['metrics'][$name] ?? null), $colWidth);
             }
             $lines[] = "<code>{$this->escape(rtrim($row))}</code>";
         }

@@ -48,6 +48,8 @@ export const api = {
     // Profile / settings
     me: () => request('GET', '/me'),
     updateMe: (body) => request('PATCH', '/me', { body }),
+    setMetrics: (names) => request('PUT', '/me/metrics', { body: { metrics: names } }),
+    listMetrics: (q) => request('GET', '/metrics', { query: { q } }),
 
     // Numbers
     stats: (primitive, period) =>

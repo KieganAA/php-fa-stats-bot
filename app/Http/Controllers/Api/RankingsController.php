@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Services\Auth\AppContext;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\RankingReporter;
 use Illuminate\Http\JsonResponse;
@@ -11,13 +12,15 @@ use Throwable;
 /**
  * GET /api/v1/rankings?kind=geo&period=today&top_n=15
  *
- * kind ∈ { geo, buyers, lp1, lp2 } — mirrors the bot's /geo /buyers /lps1 /lps2
- * commands.
+ * kind ∈ { geo, buyers, lp1, lp2 } — mirrors the bot's /geo /buyers /lps1 /lps2.
+ * Uses the first three of the user's chosen metrics; if they haven't picked
+ * any, falls back to MetricDisplay::topNames() (clicks / leads / CR%).
  */
 class RankingsController
 {
     public function show(
         Request $request,
+        AppContext $ctx,
         PeriodParser $periods,
         RankingReporter $reporter,
     ): JsonResponse {
@@ -29,7 +32,13 @@ class RankingsController
 
         try {
             $window = $periods->parse($data['period'] ?? null);
-            $html = $reporter->report($data['kind'], $window, $data['top_n'] ?? 15);
+            $user = $ctx->userOrFail();
+            // Top screens stay narrow (3 columns) — take the first 3 of the
+            // user's prefs so they get to choose the priority metrics here too.
+            $names = $user->hasCustomMetricPreferences()
+                ? array_slice($user->metricPreferences(), 0, 3)
+                : null;
+            $html = $reporter->report($data['kind'], $window, $data['top_n'] ?? 15, metricNames: $names);
 
             return response()->json([
                 'kind' => $data['kind'],

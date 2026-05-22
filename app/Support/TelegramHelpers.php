@@ -123,12 +123,13 @@ final class TelegramHelpers
                 timezone: $window['timezone'],
             );
 
+            $names = app(AppContext::class)->user()?->metricPreferences();
             $metrics = $pivot->rows[0]['metrics'] ?? [];
-            $projected = app(TargetMetricSet::class)->project($metrics);
+            $projected = app(TargetMetricSet::class)->project($metrics, $names);
 
             $html = app(StatsFormatter::class)->format($window, [
                 ['label' => $resolved['label'], 'metrics' => $projected],
-            ]);
+            ], $names);
 
             $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
         } catch (Throwable $e) {
@@ -186,7 +187,11 @@ final class TelegramHelpers
         $period = $args !== [] ? implode(' ', $args) : null;
         try {
             $window = app(PeriodParser::class)->parse($period);
-            $html = app(RankingReporter::class)->report($kind, $window);
+            $user = app(AppContext::class)->user();
+            $names = $user?->hasCustomMetricPreferences()
+                ? array_slice($user->metricPreferences(), 0, 3)
+                : null;
+            $html = app(RankingReporter::class)->report($kind, $window, metricNames: $names);
             $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
         } catch (Throwable $e) {
             $bot->sendMessage('Ошибка: '.$e->getMessage());

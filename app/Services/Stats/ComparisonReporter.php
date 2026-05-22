@@ -29,9 +29,10 @@ final class ComparisonReporter
     /**
      * @param  list<string>  $tokens
      * @param  array{from: DateTimeInterface, to: DateTimeInterface, timezone: string, label: string}  $window
+     * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
      * @return string  Telegram HTML
      */
-    public function report(array $tokens, array $window): string
+    public function report(array $tokens, array $window, ?array $metricNames = null): string
     {
         if (count($tokens) < 2) {
             throw new RuntimeException('Нужно минимум 2 примитива для сравнения.');
@@ -65,7 +66,7 @@ final class ComparisonReporter
             if ($value === '') {
                 continue;
             }
-            $byValue[$value] = $this->targets->project($row['metrics']);
+            $byValue[$value] = $this->targets->project($row['metrics'], $metricNames);
         }
 
         $entries = [];
@@ -76,6 +77,6 @@ final class ComparisonReporter
             ];
         }
 
-        return $this->formatter->format($window, $entries);
+        return $this->formatter->format($window, $entries, $metricNames);
     }
 }

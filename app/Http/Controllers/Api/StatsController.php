@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
+use App\Services\Auth\AppContext;
+use App\Services\Stats\MetricDisplay;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\PrimitiveResolver;
 use Illuminate\Http\JsonResponse;
@@ -11,14 +13,14 @@ use Illuminate\Http\Request;
 use Throwable;
 
 /**
- * Mini App stats endpoint. Mirror of /stats in the bot — takes a primitive
- * (country code in Phase K, more dimensions later) + period and returns the
- * projected target-metric totals for that slice.
+ * Mini App stats endpoint. Returns a primitive's totals projected onto the
+ * user's metric preferences (or defaults if they haven't picked any).
  */
 class StatsController
 {
     public function show(
         Request $request,
+        AppContext $ctx,
         PrimitiveResolver $primitives,
         PeriodParser $periods,
         LandingReports $reports,
@@ -41,8 +43,9 @@ class StatsController
                 timezone: $window['timezone'],
             );
 
+            $names = $ctx->userOrFail()->metricPreferences();
             $raw = $pivot->rows[0]['metrics'] ?? [];
-            $metrics = $targets->project($raw);
+            $metrics = $targets->project($raw, $names);
 
             return response()->json([
                 'primitive' => [
@@ -56,6 +59,7 @@ class StatsController
                     'label' => $window['label'],
                     'timezone' => $window['timezone'],
                 ],
+                'metric_columns' => MetricDisplay::describe($names),
                 'metrics' => $metrics,
             ]);
         } catch (Throwable $e) {

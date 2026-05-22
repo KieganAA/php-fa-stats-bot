@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Services\Auth\AppContext;
 use App\Services\Stats\ComparisonReporter;
 use App\Services\Stats\PeriodParser;
 use Illuminate\Http\JsonResponse;
@@ -11,15 +12,14 @@ use Throwable;
 /**
  * GET /api/v1/compare?primitives=33169,205215&period=today
  *
- * Returns the same Telegram-HTML report the bot's /compare command renders —
- * we keep the HTML in the API payload so the Mini App can show it identically
- * to the chat experience (right down to Δ% delta highlighting). Cuts down on
- * duplicate render logic.
+ * Same Telegram-HTML the bot's /compare emits, projected onto the user's
+ * metric prefs (falls back to defaults if they haven't picked any).
  */
 class CompareController
 {
     public function show(
         Request $request,
+        AppContext $ctx,
         PeriodParser $periods,
         ComparisonReporter $reporter,
     ): JsonResponse {
@@ -38,7 +38,7 @@ class CompareController
 
         try {
             $window = $periods->parse($data['period'] ?? null);
-            $html = $reporter->report($tokens, $window);
+            $html = $reporter->report($tokens, $window, $ctx->userOrFail()->metricPreferences());
 
             return response()->json([
                 'window' => [

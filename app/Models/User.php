@@ -66,6 +66,34 @@ class User extends Authenticatable
         return $this->hasMany(UserCompareGroup::class);
     }
 
+    /**
+     * The AIO metric names this user wants in their reports. Stored at
+     * `settings.metrics` as a flat list; null/missing falls back to the
+     * config default. Always returns a non-empty list (defaults plug in).
+     *
+     * @return list<string>
+     */
+    public function metricPreferences(): array
+    {
+        $settings = is_array($this->settings) ? $this->settings : [];
+        $picked = $settings['metrics'] ?? null;
+        if (is_array($picked) && $picked !== []) {
+            return array_values(array_filter(
+                array_map(fn ($n) => is_string($n) ? trim($n) : '', $picked),
+                fn ($n) => $n !== '',
+            ));
+        }
+
+        return (array) config('aio.default_metrics', []);
+    }
+
+    public function hasCustomMetricPreferences(): bool
+    {
+        $settings = is_array($this->settings) ? $this->settings : [];
+
+        return isset($settings['metrics']) && is_array($settings['metrics']);
+    }
+
     public function displayName(): string
     {
         if ($this->telegram_username) {

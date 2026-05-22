@@ -33,10 +33,16 @@ final class RankingReporter
 
     /**
      * @param  array{from: \DateTimeInterface, to: \DateTimeInterface, timezone: string, label: string}  $window
+     * @param  list<string>|null  $metricNames  AIO names to project + show
      * @return string Telegram HTML
      */
-    public function report(string $kind, array $window, int $topN = 15, string $sortMetric = 'Leads'): string
-    {
+    public function report(
+        string $kind,
+        array $window,
+        int $topN = 15,
+        string $sortMetric = 'Leads',
+        ?array $metricNames = null,
+    ): string {
         $dim = $this->dimensionConfig($kind);
 
         $pivot = $this->reports->rankByPrimitive(
@@ -55,13 +61,20 @@ final class RankingReporter
         }
         $labels = $this->batchLabels($kind, $uuids);
 
+        // Pivot rows still need the sort metric (Leads by default) — even if
+        // it's not in the user's display set, we project it for ordering and
+        // strip it before rendering.
+        $projectNames = $metricNames !== null
+            ? array_values(array_unique([...$metricNames, $sortMetric]))
+            : null;
+
         $entries = [];
         foreach ($pivot->rows as $row) {
             $uuid = (string) ($row['dimensions']['group_0'] ?? '');
             if ($uuid === '') {
                 continue;
             }
-            $metrics = $this->targets->project($row['metrics']);
+            $metrics = $this->targets->project($row['metrics'], $projectNames);
             $entries[] = [
                 'label' => $labels[$uuid] ?? $uuid,
                 'metrics' => $metrics,
@@ -72,10 +85,9 @@ final class RankingReporter
         usort($entries, fn ($a, $b) => ($b['sort_value'] ?? 0) <=> ($a['sort_value'] ?? 0));
         $entries = array_slice($entries, 0, $topN);
 
-        // Drop the helper sort_value before handing to the formatter.
         $clean = array_map(fn ($e) => ['label' => $e['label'], 'metrics' => $e['metrics']], $entries);
 
-        return $this->formatter->format($window, $dim['title'], $clean, $dim['header']);
+        return $this->formatter->format($window, $dim['title'], $clean, $dim['header'], $metricNames);
     }
 
     /** @param  list<string>  $uuids @return array<string, string> */

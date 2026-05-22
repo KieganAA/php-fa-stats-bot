@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\CompareController;
 use App\Http\Controllers\Api\GroupsController;
 use App\Http\Controllers\Api\MeController;
+use App\Http\Controllers\Api\MetricsController;
 use App\Http\Controllers\Api\MvtController;
 use App\Http\Controllers\Api\RankingsController;
 use App\Http\Controllers\Api\StatsController;
@@ -38,6 +39,10 @@ Route::middleware(VerifyTelegramInitData::class)
         // Profile / settings
         Route::get('me', [MeController::class, 'show']);
         Route::patch('me', [MeController::class, 'update']);
+        Route::put('me/metrics', [MeController::class, 'setMetrics']);
+
+        // Metric catalog for the Settings picker
+        Route::get('metrics', [MetricsController::class, 'index']);
 
         // Numbers
         Route::get('stats', [StatsController::class, 'show']);

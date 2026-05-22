@@ -67,9 +67,10 @@ class NotifyCompareGroupJob implements ShouldQueue
         $html = null;
 
         try {
+            $names = $user->metricPreferences();
             $html = match ($group->mode ?? UserCompareGroup::MODE_COMPARE) {
                 UserCompareGroup::MODE_MVT => $this->renderMvt($group, $window, $mvt, $mvtFormatter),
-                default => $this->renderCompare($group, $window, $compare),
+                default => $this->renderCompare($group, $window, $compare, $names),
             };
         } catch (Throwable $e) {
             Log::warning('tracking-group notify failed', [
@@ -97,7 +98,8 @@ class NotifyCompareGroupJob implements ShouldQueue
         $group->save();
     }
 
-    private function renderCompare(UserCompareGroup $group, array $window, ComparisonReporter $compare): ?string
+    /** @param  list<string>|null  $metricNames */
+    private function renderCompare(UserCompareGroup $group, array $window, ComparisonReporter $compare, ?array $metricNames): ?string
     {
         $tokens = [];
         foreach ($group->members as $m) {
@@ -111,7 +113,7 @@ class NotifyCompareGroupJob implements ShouldQueue
             return null; // compare requires ≥2
         }
 
-        return $compare->report($tokens, $window);
+        return $compare->report($tokens, $window, $metricNames);
     }
 
     private function renderMvt(UserCompareGroup $group, array $window, MvtReporter $mvt, MvtFormatter $fmt): ?string

@@ -3,11 +3,16 @@
 namespace App\Support;
 
 use App\Models\Aio\Landing;
+use App\Services\Aio\Pivot\LandingReports;
+use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Ai\AiHandler;
 use App\Services\Ai\AiRateLimiter;
 use App\Services\Auth\AppContext;
 use App\Services\Stats\LandingFormatter;
 use App\Services\Stats\PeriodParser;
+use App\Services\Stats\PrimitiveResolver;
+use App\Services\Stats\RankingReporter;
+use App\Services\Stats\StatsFormatter;
 use App\Services\Tracking\CompareGroupBinder;
 use App\Services\Tracking\CompareGroupUnbinder;
 use SergiX44\Nutgram\Nutgram;
@@ -79,6 +84,73 @@ final class TelegramHelpers
         );
 
         return InlineKeyboardMarkup::make()->addRow($button);
+    }
+
+    /**
+     * Body of /stats — extracted from the command handler so onText (raw input)
+     * can reuse it without parsing /stats argv twice.
+     *
+     * Returns true if the input was understood (primitive resolved), false if
+     * the resolver couldn't parse the token. Callers decide whether a false
+     * means "send a help message" or "delegate to fallback".
+     *
+     * @param  list<string>  $args
+     */
+    public static function runStats(Nutgram $bot, array $args): bool
+    {
+        if ($args === []) {
+            return false;
+        }
+        $token = array_shift($args);
+        $period = $args !== [] ? implode(' ', $args) : null;
+
+        try {
+            $resolved = app(PrimitiveResolver::class)->resolve($token);
+        } catch (Throwable) {
+            return false;
+        }
+
+        try {
+            $window = app(PeriodParser::class)->parse($period);
+
+            $pivot = app(LandingReports::class)->statsByPrimitive(
+                filterKey: $resolved['filter_key'],
+                filterValue: $resolved['filter_value'],
+                from: $window['from'],
+                to: $window['to'],
+                timezone: $window['timezone'],
+            );
+
+            $metrics = $pivot->rows[0]['metrics'] ?? [];
+            $projected = app(TargetMetricSet::class)->project($metrics);
+
+            $html = app(StatsFormatter::class)->format($window, [
+                ['label' => $resolved['label'], 'metrics' => $projected],
+            ]);
+
+            $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
+        } catch (Throwable $e) {
+            $bot->sendMessage('Ошибка: '.$e->getMessage());
+        }
+
+        return true;
+    }
+
+    /**
+     * Ranking command body — shared between /geo, /buyers, /lps1, /lps2.
+     *
+     * @param  list<string>  $args  pure period args (no token leading)
+     */
+    public static function runRanking(Nutgram $bot, string $kind, array $args): void
+    {
+        $period = $args !== [] ? implode(' ', $args) : null;
+        try {
+            $window = app(PeriodParser::class)->parse($period);
+            $html = app(RankingReporter::class)->report($kind, $window);
+            $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
+        } catch (Throwable $e) {
+            $bot->sendMessage('Ошибка: '.$e->getMessage());
+        }
     }
 
     /**

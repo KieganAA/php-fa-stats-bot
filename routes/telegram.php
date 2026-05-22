@@ -2,14 +2,10 @@
 
 /** @var Nutgram $bot */
 
-use App\Services\Aio\Pivot\LandingReports;
-use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Auth\AppContext;
 use App\Services\Auth\TelegramUserResolver;
 use App\Services\Stats\ComparisonReporter;
 use App\Services\Stats\PeriodParser;
-use App\Services\Stats\PrimitiveResolver;
-use App\Services\Stats\StatsFormatter;
 use App\Support\FlexibleCommand;
 use App\Support\TelegramHelpers as H;
 use Illuminate\Support\Facades\Redis;
@@ -100,21 +96,21 @@ $command('start', function (Nutgram $bot) {
     $bot->sendMessage(
         "👋 Привет! Я fa-stats-bot.\n\n".
         "Откроешь <b>мини-апп</b> (/open) — там удобнее.\n\n".
-        "<b>Быстрые статы:</b>\n".
-        "/stats DK — страна DK сегодня\n".
-        "/stats 33169 — прокл по human_id\n".
-        "/stats 33169 за неделю — он же за 7 дней\n".
-        "/stats BR 7d — BR за последние 7 дней\n\n".
-        "<b>Compare:</b>\n".
-        "/compare 33169 205215 — два прокла рядом + Δ%\n".
-        "/compare DK BR за неделю — две страны\n\n".
-        "<b>Группы (3h-пуш с compare):</b>\n".
-        "/bind 33169 205215 my-test — забиндить пару\n".
-        "/groups — мои группы\n".
-        "/unbind my-test — снять\n\n".
+        "<b>Самое простое — просто пиши:</b>\n".
+        "<code>DK</code> — DK сегодня\n".
+        "<code>33169</code> — прокл #33169 сегодня\n".
+        "<code>BR 7d</code> — BR за 7 дней\n".
+        "<code>33169 за неделю</code>\n\n".
+        "<b>Топы:</b>\n".
+        "/geo · /buyers · /lps1 · /lps2 [период]\n\n".
+        "<b>Compare двух (с Δ%):</b>\n".
+        "/compare 33169 205215\n".
+        "/compare DK BR за неделю\n\n".
+        "<b>3h-пуш с compare:</b>\n".
+        "/bind 33169 205215 [name]\n".
+        "/groups · /unbind &lt;name&gt;\n\n".
         "<b>Свободно:</b>\n".
-        "/ai &lt;вопрос&gt; — спроси словами, я разберусь\n\n".
-        "<b>Сервис:</b>\n".
+        "/ai &lt;вопрос&gt;\n\n".
         "/ping · /help",
         parse_mode: 'HTML',
         reply_markup: H::openMiniAppKeyboard(),
@@ -137,9 +133,16 @@ $command('ping', function (Nutgram $bot) {
 
 $command('help', function (Nutgram $bot) {
     $bot->sendMessage(
+        "<b>Сырой ввод:</b>\n".
+        "<code>DK</code>, <code>33169</code>, <code>BR 7d</code> — \n".
+        "то же что /stats но без слэша\n\n".
         "<b>Статы:</b>\n".
         "/stats &lt;примитив&gt; [период]\n".
         "/compare &lt;a&gt; &lt;b&gt; [...] [период]\n\n".
+        "<b>Топы (overview):</b>\n".
+        "/geo [период] — все страны\n".
+        "/buyers [период] — топ баеров\n".
+        "/lps1 / /lps2 — топ лендов по позиции\n\n".
         "<b>Группы (3h-пуш):</b>\n".
         "/bind &lt;id1&gt; &lt;id2&gt; [name]\n".
         "/groups · /unbind &lt;name&gt;\n\n".
@@ -169,33 +172,26 @@ $command('stats', function (Nutgram $bot) {
         return;
     }
 
-    $token = array_shift($args);
-    $period = $args !== [] ? implode(' ', $args) : null;
-
-    try {
-        $resolved = app(PrimitiveResolver::class)->resolve($token);
-        $window = app(PeriodParser::class)->parse($period);
-
-        $pivot = app(LandingReports::class)->statsByPrimitive(
-            filterKey: $resolved['filter_key'],
-            filterValue: $resolved['filter_value'],
-            from: $window['from'],
-            to: $window['to'],
-            timezone: $window['timezone'],
-        );
-
-        $metrics = $pivot->rows[0]['metrics'] ?? [];
-        $projected = app(TargetMetricSet::class)->project($metrics);
-
-        $html = app(StatsFormatter::class)->format($window, [
-            ['label' => $resolved['label'], 'metrics' => $projected],
-        ]);
-
-        $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
+    if (! H::runStats($bot, $args)) {
+        $bot->sendMessage('Не понял примитив. /help — что поддерживается.');
     }
-})->description('Метрики (страна, кампания, …)');
+})->description('Метрики (страна, прокл, …)');
+
+$command('geo', function (Nutgram $bot) {
+    H::runRanking($bot, 'geo', H::args($bot));
+})->description('Топ стран');
+
+$command('buyers', function (Nutgram $bot) {
+    H::runRanking($bot, 'buyers', H::args($bot));
+})->description('Топ баеров');
+
+$command('lps1', function (Nutgram $bot) {
+    H::runRanking($bot, 'lp1', H::args($bot));
+})->description('Топ лендингов на LP1');
+
+$command('lps2', function (Nutgram $bot) {
+    H::runRanking($bot, 'lp2', H::args($bot));
+})->description('Топ лендингов на LP2');
 
 $command('bind', function (Nutgram $bot) {
     try {
@@ -257,6 +253,32 @@ $command('ai', function (Nutgram $bot) {
 
     H::runAi($bot, $question);
 })->description('Свободный запрос (AI)');
+
+// Raw-input shortcut: bare "33169" / "DK" / "33169 7d" without the /stats
+// prefix routes straight into the stats pipeline. The regex deliberately
+// only matches things that LOOK like our primitives — country codes, numeric
+// human_ids, or UUIDs — followed by an optional period blob. Anything else
+// falls through to the fallback handler.
+$bot->onText('([A-Za-z]{2}|\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\s+(.+))?', function (Nutgram $bot, ?string $token, ?string $rest) {
+    if ($token === null) {
+        return;
+    }
+    $args = [$token];
+    if ($rest !== null && $rest !== '') {
+        foreach (preg_split('/\s+/', trim($rest)) ?: [] as $w) {
+            if ($w !== '') {
+                $args[] = $w;
+            }
+        }
+    }
+
+    // Soft-fail: if the resolver can't understand it, drop through to fallback
+    // by silently returning — fallback then sends "Не понял" so we don't get
+    // double messages.
+    if (! H::runStats($bot, $args)) {
+        $bot->sendMessage('Не понял. /help — список команд.');
+    }
+});
 
 $bot->fallback(function (Nutgram $bot) {
     $bot->sendMessage('Не понял. /help — список команд.');

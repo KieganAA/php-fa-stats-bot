@@ -60,6 +60,26 @@ class LandingReports
     }
 
     /**
+     * Group-by ranking: no filter, just "give me every value for this dimension
+     * that had traffic in the window". Used by /geo, /buyers, /lps1 etc to build
+     * top-N overview tables.
+     */
+    public function rankByPrimitive(
+        string $filterKey,
+        DateTimeInterface|string $from,
+        DateTimeInterface|string $to,
+        string $timezone = 'UTC',
+        bool $heavy = false,
+    ): PivotResponse {
+        $body = PivotRequest::create()
+            ->dates($from, $to, $timezone)
+            ->groupBy($filterKey)
+            ->toArray();
+
+        return $this->aio->pivotReport($body, heavy: $heavy);
+    }
+
+    /**
      * Compare N primitives that share the same AIO dimension key (countries,
      * landings at the same position, …). One AIO call, grouped by the key,
      * returning one row per value found.

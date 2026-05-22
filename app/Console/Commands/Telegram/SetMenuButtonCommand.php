@@ -4,7 +4,7 @@ namespace App\Console\Commands\Telegram;
 
 use Illuminate\Console\Command;
 use SergiX44\Nutgram\Nutgram;
-use SergiX44\Nutgram\Telegram\Types\Common\MenuButtonWebApp;
+use SergiX44\Nutgram\Telegram\Types\Command\MenuButtonWebApp;
 use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 
 class SetMenuButtonCommand extends Command
@@ -42,10 +42,10 @@ class SetMenuButtonCommand extends Command
             return self::FAILURE;
         }
 
-        $button = new MenuButtonWebApp;
-        $button->type = 'web_app';
-        $button->text = (string) $this->option('text');
-        $button->web_app = WebAppInfo::make(url: $url);
+        $button = new MenuButtonWebApp(
+            text: (string) $this->option('text'),
+            web_app: WebAppInfo::make(url: $url),
+        );
 
         $bot->setChatMenuButton(menu_button: $button);
 

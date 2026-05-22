@@ -61,11 +61,6 @@ class User extends Authenticatable
         return '…'.substr($k, -4);
     }
 
-    public function aliases(): HasMany
-    {
-        return $this->hasMany(LandingAlias::class, 'created_by_id');
-    }
-
     public function bindings(): HasMany
     {
         return $this->hasMany(UserLandingBinding::class);

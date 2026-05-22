@@ -1,7 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\AliasController;
-use App\Http\Controllers\Api\BindingController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\HealthController;
@@ -36,16 +34,5 @@ Route::middleware(VerifyTelegramInitData::class)
         Route::get('me', [MeController::class, 'show']);
         Route::patch('me', [MeController::class, 'update']);
 
-        Route::get('aliases', [AliasController::class, 'index']);
-        Route::post('aliases', [AliasController::class, 'store']);
-        Route::delete('aliases/{alias}', [AliasController::class, 'destroy']);
-
         Route::get('stats', [StatsController::class, 'show']);
-        Route::get('compare', [StatsController::class, 'compare']);
-
-        Route::get('bindings', [BindingController::class, 'index']);
-        Route::post('bindings', [BindingController::class, 'store']);
-        Route::patch('bindings/{binding}', [BindingController::class, 'update']);
-        Route::delete('bindings/{binding}', [BindingController::class, 'destroy']);
-        Route::get('bindings/{binding}/latest', [BindingController::class, 'latest']);
     });

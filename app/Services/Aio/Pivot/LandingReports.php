@@ -37,6 +37,28 @@ class LandingReports
         return $this->aio->pivotReport($body, heavy: $heavy);
     }
 
+    /**
+     * Stats filtered by ONE primitive dimension (country / source / campaign /
+     * buyer / landing). Groups by the same key the filter is applied to —
+     * the response then has exactly one row of totals.
+     */
+    public function statsByPrimitive(
+        string $filterKey,
+        string $filterValue,
+        DateTimeInterface|string $from,
+        DateTimeInterface|string $to,
+        string $timezone = 'UTC',
+        bool $heavy = false,
+    ): PivotResponse {
+        $body = PivotRequest::create()
+            ->dates($from, $to, $timezone)
+            ->filter($filterKey, [$filterValue])
+            ->groupBy($filterKey)
+            ->toArray();
+
+        return $this->aio->pivotReport($body, heavy: $heavy);
+    }
+
     /** @param  list<string>  $landingUuids */
     public function compareLandings(
         array $landingUuids,

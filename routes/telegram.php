@@ -6,8 +6,8 @@ use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Auth\AppContext;
 use App\Services\Auth\TelegramUserResolver;
-use App\Services\Stats\AliasResolver;
 use App\Services\Stats\PeriodParser;
+use App\Services\Stats\PrimitiveResolver;
 use App\Services\Stats\StatsFormatter;
 use App\Support\FlexibleCommand;
 use App\Support\TelegramHelpers as H;
@@ -16,7 +16,7 @@ use SergiX44\Nutgram\Handlers\Type\Command;
 use SergiX44\Nutgram\Nutgram;
 
 // FlexibleCommand fixes Nutgram's "command name must match exactly" behaviour
-// so `/alias list` and `/stats foo 7d` route correctly. See its class docblock.
+// so `/stats DK 7d` routes correctly. See its class docblock.
 $command = fn (string $name, callable $handler): Command => $bot->registerCommand(
     new FlexibleCommand($handler, $name),
 );
@@ -66,7 +66,6 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
 });
 
 // Per-user TG command rate limit. Sliding window over Redis ZSET.
-// Defends our own infra and the AIO budget against runaway clients.
 $bot->middleware(function (Nutgram $bot, callable $next) {
     $limit = (int) config('services.telegram.rate_limit', 30);
     $window = (int) config('services.telegram.rate_window_seconds', 60);
@@ -99,25 +98,19 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
 $command('start', function (Nutgram $bot) {
     $bot->sendMessage(
         "👋 Привет! Я fa-stats-bot.\n\n".
-        "Открой <b>мини-апп</b> (/open) — там удобнее, чем команды.\n\n".
-        "<b>Статы:</b>\n".
-        "/stats &lt;alias&gt; [период]\n".
-        "/compare &lt;alias…&gt; [период]\n\n".
-        "<b>Алиасы:</b>\n".
-        "/alias add &lt;name&gt; &lt;id&gt; [pos]\n".
-        "/alias list · /alias rm &lt;name&gt;\n\n".
-        "<b>Мониторинг:</b>\n".
-        "/bind &lt;alias&gt; [silent] — отслеживать (пуш каждые 3ч)\n".
-        "/unbind &lt;alias&gt; — снять\n".
-        "/bindings — мои биндинги\n".
-        "/mvt &lt;alias&gt; — последний снэпшот\n\n".
-        "<b>AI и сервис:</b>\n".
-        "/ai &lt;вопрос&gt; · /ping · /help\n\n".
-        'Период: today, yesterday, 7d, 24h, week, month.',
+        "Откроешь <b>мини-апп</b> (/open) — там удобнее.\n\n".
+        "<b>Быстрые статы:</b>\n".
+        "/stats DK — DK сегодня\n".
+        "/stats DK 7d — DK за последние 7 дней\n".
+        "/stats BR за неделю — то же на русском\n\n".
+        "<b>Свободно:</b>\n".
+        "/ai &lt;вопрос&gt; — спроси словами, я разберусь\n\n".
+        "<b>Сервис:</b>\n".
+        "/ping · /help",
         parse_mode: 'HTML',
         reply_markup: H::openMiniAppKeyboard(),
     );
-})->description('Стартовое сообщение');
+})->description('Начать');
 
 $command('open', function (Nutgram $bot) {
     $keyboard = H::openMiniAppKeyboard();
@@ -135,60 +128,40 @@ $command('ping', function (Nutgram $bot) {
 
 $command('help', function (Nutgram $bot) {
     $bot->sendMessage(
-        "<b>Мини-апп:</b> /open\n\n".
         "<b>Статы:</b>\n".
-        "/stats &lt;alias&gt; [период]\n".
-        "/compare &lt;alias…&gt; [период]\n\n".
-        "<b>Алиасы:</b>\n".
-        "/alias add &lt;name&gt; &lt;id&gt; [pos]\n".
-        "/alias list · /alias rm\n\n".
-        "<b>Мониторинг:</b>\n".
-        "/bind &lt;alias&gt; [silent]\n".
-        "/unbind &lt;alias&gt;\n".
-        "/bindings\n".
-        "/mvt &lt;alias&gt;\n\n".
-        "<b>AI:</b> /ai &lt;вопрос&gt;\n\n".
-        'Период: today | yesterday | 7d | 24h | week | month.',
+        "/stats &lt;примитив&gt; [период]\n\n".
+        "Примитив — код страны (DK, BR, IT…). Скоро будут кампании/баеры/лендинги.\n\n".
+        "Период (любой из):\n".
+        "• today / сегодня (по умолчанию)\n".
+        "• yesterday / вчера / позавчера\n".
+        "• 7d, 24h, 2w, 1m\n".
+        "• неделя / за неделю / прошлая неделя\n".
+        "• месяц / за месяц / прошлый месяц\n".
+        "• 3 дня, 5 часов\n\n".
+        "<b>AI:</b> /ai &lt;вопрос&gt;\n".
+        "<b>Мини-апп:</b> /open",
         parse_mode: 'HTML',
     );
 })->description('Справка');
 
-$command('alias', function (Nutgram $bot) {
-    $args = H::args($bot);
-    $action = strtolower($args[0] ?? 'list');
-
-    try {
-        match ($action) {
-            'add' => H::aliasAdd($bot, array_slice($args, 1)),
-            'rm', 'remove', 'del', 'delete' => H::aliasRm($bot, array_slice($args, 1)),
-            'list', 'ls' => H::aliasList($bot),
-            default => $bot->sendMessage("Неизвестное действие: {$action}\nДоступно: add | list | rm"),
-        };
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Управление алиасами лендингов');
-
 $command('stats', function (Nutgram $bot) {
     $args = H::args($bot);
     if ($args === []) {
-        $bot->sendMessage('Использование: /stats <alias> [период]');
+        $bot->sendMessage('Использование: /stats <примитив> [период]');
 
         return;
     }
 
     $token = array_shift($args);
-    $period = $args[0] ?? null;
+    $period = $args !== [] ? implode(' ', $args) : null;
 
     try {
-        $resolved = app(AliasResolver::class)->resolve($token);
+        $resolved = app(PrimitiveResolver::class)->resolve($token);
         $window = app(PeriodParser::class)->parse($period);
 
-        $position = $resolved['alias']?->position ?? 1;
-        $reports = app(LandingReports::class);
-        $pivot = $reports->landingStats(
-            landingUuid: $resolved['landing']->uuid,
-            position: $position,
+        $pivot = app(LandingReports::class)->statsByPrimitive(
+            filterKey: $resolved['filter_key'],
+            filterValue: $resolved['filter_value'],
             from: $window['from'],
             to: $window['to'],
             timezone: $window['timezone'],
@@ -197,109 +170,15 @@ $command('stats', function (Nutgram $bot) {
         $metrics = $pivot->rows[0]['metrics'] ?? [];
         $projected = app(TargetMetricSet::class)->project($metrics);
 
-        $label = H::label($resolved['alias']?->alias, $resolved['landing']->name, $position);
         $html = app(StatsFormatter::class)->format($window, [
-            ['label' => $label, 'metrics' => $projected],
+            ['label' => $resolved['label'], 'metrics' => $projected],
         ]);
 
         $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
     } catch (Throwable $e) {
         $bot->sendMessage('Ошибка: '.$e->getMessage());
     }
-})->description('Метрики лендинга');
-
-$command('compare', function (Nutgram $bot) {
-    $args = H::args($bot);
-    if (count($args) < 2) {
-        $bot->sendMessage('Использование: /compare <alias1> <alias2> [...] [период]');
-
-        return;
-    }
-
-    [$tokens, $period] = H::splitPeriod($args);
-    if (count($tokens) < 2) {
-        $bot->sendMessage('Нужно минимум 2 алиаса для сравнения.');
-
-        return;
-    }
-
-    try {
-        $resolver = app(AliasResolver::class);
-        $resolved = $resolver->resolveAll($tokens);
-
-        $positions = array_unique(array_map(fn ($r) => $r['alias']?->position ?? 1, $resolved));
-        if (count($positions) > 1) {
-            $bot->sendMessage('Все алиасы должны быть на одной позиции (LP1, LP2, …).');
-
-            return;
-        }
-        $position = (int) array_values($positions)[0];
-
-        $window = app(PeriodParser::class)->parse($period);
-        $uuids = array_map(fn ($r) => $r['landing']->uuid, $resolved);
-
-        $pivot = app(LandingReports::class)->compareLandings(
-            landingUuids: array_values($uuids),
-            position: $position,
-            from: $window['from'],
-            to: $window['to'],
-            timezone: $window['timezone'],
-        );
-
-        $byUuid = [];
-        foreach ($pivot->rows as $row) {
-            $uuid = (string) ($row['dimensions']['group_0'] ?? '');
-            $byUuid[$uuid] = $row['metrics'];
-        }
-
-        $targets = app(TargetMetricSet::class);
-        $entries = [];
-        foreach ($resolved as $r) {
-            $raw = $byUuid[$r['landing']->uuid] ?? [];
-            $entries[] = [
-                'label' => H::label($r['alias']?->alias, $r['landing']->name, $position),
-                'metrics' => $targets->project($raw),
-            ];
-        }
-
-        $html = app(StatsFormatter::class)->format($window, $entries);
-        $bot->sendMessage($html, parse_mode: 'HTML', disable_web_page_preview: true);
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Сравнить лендинги');
-
-$command('bind', function (Nutgram $bot) {
-    try {
-        H::bind($bot, H::args($bot));
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Отслеживать лендинг (3h снэпшоты)');
-
-$command('unbind', function (Nutgram $bot) {
-    try {
-        H::unbind($bot, H::args($bot));
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Перестать отслеживать');
-
-$command('bindings', function (Nutgram $bot) {
-    try {
-        H::bindingsList($bot);
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Список моих биндингов');
-
-$command('mvt', function (Nutgram $bot) {
-    try {
-        H::mvtStatus($bot, H::args($bot));
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Последний снэпшот лендинга');
+})->description('Метрики (страна, кампания, …)');
 
 $command('ai', function (Nutgram $bot) {
     $text = (string) ($bot->message()?->text ?? '');

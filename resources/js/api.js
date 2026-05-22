@@ -12,9 +12,7 @@ async function request(method, path, { query, body } = {}) {
         }
     }
 
-    const headers = {
-        Accept: 'application/json',
-    };
+    const headers = { Accept: 'application/json' };
     if (initData) {
         headers.Authorization = `tma ${initData}`;
     }
@@ -32,7 +30,7 @@ async function request(method, path, { query, body } = {}) {
     try {
         data = await res.json();
     } catch {
-        // empty body — fine
+        // empty body
     }
 
     if (!res.ok) {
@@ -49,18 +47,6 @@ async function request(method, path, { query, body } = {}) {
 export const api = {
     me: () => request('GET', '/me'),
     updateMe: (body) => request('PATCH', '/me', { body }),
-
-    listAliases: () => request('GET', '/aliases'),
-    createAlias: (body) => request('POST', '/aliases', { body }),
-    deleteAlias: (id) => request('DELETE', `/aliases/${id}`),
-
-    stats: (alias, period) => request('GET', '/stats', { query: { alias, period } }),
-    compare: (aliases, period) =>
-        request('GET', '/compare', { query: { aliases: aliases.join(','), period } }),
-
-    listBindings: () => request('GET', '/bindings'),
-    createBinding: (body) => request('POST', '/bindings', { body }),
-    updateBinding: (id, body) => request('PATCH', `/bindings/${id}`, { body }),
-    deleteBinding: (id) => request('DELETE', `/bindings/${id}`),
-    bindingLatest: (id) => request('GET', `/bindings/${id}/latest`),
+    stats: (primitive, period) =>
+        request('GET', '/stats', { query: { primitive, period } }),
 };

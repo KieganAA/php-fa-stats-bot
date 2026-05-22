@@ -28,9 +28,6 @@
 <script setup>
 const tabs = [
     { path: '/stats', label: 'Stats' },
-    { path: '/compare', label: 'Compare' },
-    { path: '/aliases', label: 'Aliases' },
-    { path: '/bindings', label: 'Bindings' },
     { path: '/settings', label: 'Settings' },
 ];
 </script>

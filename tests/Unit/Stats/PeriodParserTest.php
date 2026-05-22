@@ -173,4 +173,82 @@ class PeriodParserTest extends TestCase
         $this->assertSame('yesterday', $parser->parse('Yesterday')['label']);
         $this->assertSame('7d', $parser->parse('7D')['label']);
     }
+
+    public function test_day_before_yesterday(): void
+    {
+        $parser = new PeriodParser('UTC');
+        $r = $parser->parse('позавчера');
+
+        $this->assertSame('day before yesterday', $r['label']);
+        $this->assertSame('2026-04-23 00:00:00', $r['from']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-04-23 23:59:59', $r['to']->format('Y-m-d H:i:s'));
+    }
+
+    public function test_russian_week_aliases(): void
+    {
+        $parser = new PeriodParser('UTC');
+
+        $this->assertSame('this week', $parser->parse('неделя')['label']);
+        $this->assertSame('this week', $parser->parse('неделю')['label']);
+        $this->assertSame('this week', $parser->parse('за неделю')['label']);
+    }
+
+    public function test_za_prefix_unwraps(): void
+    {
+        $parser = new PeriodParser('UTC');
+
+        $this->assertSame('yesterday', $parser->parse('за вчера')['label']);
+        $this->assertSame('this month', $parser->parse('за месяц')['label']);
+        $this->assertSame('7d', $parser->parse('за 7d')['label']);
+    }
+
+    public function test_russian_n_days_shorthand(): void
+    {
+        $parser = new PeriodParser('UTC');
+
+        $r = $parser->parse('3 дня');
+        $this->assertSame('3d', $r['label']);
+        $this->assertSame('2026-04-22 14:30:00', $r['from']->format('Y-m-d H:i:s'));
+
+        $this->assertSame('5d', $parser->parse('5 дней')['label']);
+        $this->assertSame('1d', $parser->parse('1 д')['label']);
+    }
+
+    public function test_russian_n_hours_shorthand(): void
+    {
+        $parser = new PeriodParser('UTC');
+
+        $this->assertSame('2h', $parser->parse('2 ч')['label']);
+        $this->assertSame('3h', $parser->parse('3 часа')['label']);
+        $this->assertSame('5h', $parser->parse('5 часов')['label']);
+    }
+
+    public function test_russian_n_weeks_shorthand(): void
+    {
+        $this->assertSame('2w', (new PeriodParser('UTC'))->parse('2 недели')['label']);
+    }
+
+    public function test_now_and_chas_map_to_1h(): void
+    {
+        $parser = new PeriodParser('UTC');
+
+        $this->assertSame('1h', $parser->parse('сейчас')['label']);
+        $this->assertSame('1h', $parser->parse('час')['label']);
+        $this->assertSame('1h', $parser->parse('now')['label']);
+    }
+
+    public function test_sutki_is_24h(): void
+    {
+        $this->assertSame('24h', (new PeriodParser('UTC'))->parse('сутки')['label']);
+    }
+
+    public function test_last_month(): void
+    {
+        $parser = new PeriodParser('UTC');
+        $r = $parser->parse('прошлый месяц');
+
+        $this->assertSame('last month', $r['label']);
+        $this->assertSame('2026-03-01 00:00:00', $r['from']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-03-31 23:59:59', $r['to']->format('Y-m-d H:i:s'));
+    }
 }

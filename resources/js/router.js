@@ -1,15 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
 // Hash history keeps routing entirely client-side — no server config needed
-// for /app/stats vs /app/aliases. Path-based routing would require either
-// catch-all routes on Laravel or a separate sub-app per screen.
+// for /app/stats vs /app/settings. Phase K trims down to two screens; the
+// rest of the surface (compare, bindings, alias-style favourites) returns
+// in phase N once the new data model is settled.
 const routes = [
     { path: '/', redirect: '/stats' },
     { path: '/stats', component: () => import('./views/Stats.vue') },
-    { path: '/compare', component: () => import('./views/Compare.vue') },
-    { path: '/aliases', component: () => import('./views/Aliases.vue') },
-    { path: '/bindings', component: () => import('./views/Bindings.vue') },
     { path: '/settings', component: () => import('./views/Settings.vue') },
+    { path: '/:catchAll(.*)', redirect: '/stats' },
 ];
 
 export const router = createRouter({

@@ -1,14 +1,18 @@
 <?php
 
 use App\Http\Controllers\Api\CompareController;
+use App\Http\Controllers\Api\Ext\ExtensionController;
 use App\Http\Controllers\Api\GroupsController;
+use App\Http\Controllers\Api\LandingsController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MetricsController;
 use App\Http\Controllers\Api\MvtController;
 use App\Http\Controllers\Api\RankingsController;
 use App\Http\Controllers\Api\StatsController;
+use App\Http\Controllers\ExtensionDownloadController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\MiniAppController;
+use App\Http\Middleware\VerifyExtensionToken;
 use App\Http\Middleware\VerifyTelegramInitData;
 use App\Http\Middleware\VerifyTelegramWebhook;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +36,36 @@ Route::post('/telegram/webhook', function (Nutgram $bot) {
 // of Telegram (or a configured dev sandbox with TELEGRAM_TOKEN empty).
 Route::get('/app', MiniAppController::class)->name('miniapp');
 
+// Chrome-extension download. Public because the bundle has no secrets —
+// users authenticate by pasting a personal token from /extension_token.
+Route::get('/extension.zip', ExtensionDownloadController::class)->name('extension.zip');
+
+// Chrome extension API. Bearer-token auth (per-user, generated via /extension_token).
+// Pre-flight OPTIONS responds with permissive CORS so the extension popup +
+// content script can hit /api/ext/ from any origin (chrome-extension://*, AIO domain).
+Route::options('api/ext/{any}', function () {
+    return response()->noContent(204)
+        ->withHeaders([
+            'Access-Control-Allow-Origin' => request()->header('Origin', '*'),
+            'Access-Control-Allow-Methods' => 'GET,POST,PATCH,DELETE,OPTIONS',
+            'Access-Control-Allow-Headers' => 'Authorization, Content-Type, Accept',
+            'Access-Control-Max-Age' => '86400',
+            'Vary' => 'Origin',
+        ]);
+})->where('any', '.*');
+
+Route::middleware(VerifyExtensionToken::class)
+    ->prefix('api/ext')
+    ->group(function () {
+        Route::get('me', [ExtensionController::class, 'me']);
+        Route::get('groups', [ExtensionController::class, 'groups']);
+        Route::post('groups', [ExtensionController::class, 'createGroup']);
+        Route::patch('groups/{group}', [ExtensionController::class, 'updateGroup']);
+        Route::delete('groups/{group}', [ExtensionController::class, 'destroyGroup']);
+        Route::get('landings', [ExtensionController::class, 'landings']);
+        Route::post('resolve', [ExtensionController::class, 'resolve']);
+    });
+
 // Mini App JSON API. Every request must carry verified initData.
 Route::middleware(VerifyTelegramInitData::class)
     ->prefix('api/v1')
@@ -40,9 +74,14 @@ Route::middleware(VerifyTelegramInitData::class)
         Route::get('me', [MeController::class, 'show']);
         Route::patch('me', [MeController::class, 'update']);
         Route::put('me/metrics', [MeController::class, 'setMetrics']);
+        Route::put('me/metrics/{context}', [MeController::class, 'setContextMetrics']);
+        Route::put('me/metric-labels', [MeController::class, 'setMetricLabels']);
 
         // Metric catalog for the Settings picker
         Route::get('metrics', [MetricsController::class, 'index']);
+
+        // Landing search (autocomplete for the subscription picker)
+        Route::get('landings', [LandingsController::class, 'index']);
 
         // Numbers
         Route::get('stats', [StatsController::class, 'show']);

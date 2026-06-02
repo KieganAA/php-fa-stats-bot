@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Services\Auth\AppContext;
 use App\Services\Stats\ComparisonReporter;
+use App\Services\Stats\MetricColumnResolver;
 use App\Services\Stats\PeriodParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,7 +40,9 @@ class CompareController
         try {
             $user = $ctx->userOrFail();
             $window = $periods->parse($data['period'] ?? null, $user->timezone);
-            $html = $reporter->report($tokens, $window, $user->metricPreferences());
+            $names = $user->metricNamesFor(MetricColumnResolver::COMPARE);
+            $labels = $user->metricLabelOverrides();
+            $html = $reporter->report($tokens, $window, $names, $labels);
 
             return response()->json([
                 'window' => [
@@ -50,6 +53,7 @@ class CompareController
                 ],
                 'html' => $html,
                 'tokens' => $tokens,
+                'metric_columns' => $user->metricColumnsFor(MetricColumnResolver::COMPARE),
             ]);
         } catch (Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);

@@ -23,11 +23,24 @@ final class CompareGroupBinder
 {
     /**
      * @param  list<Landing>  $landings  resolved by the caller (already verified)
+     * @param  int|null  $notifyIntervalMinutes  null = leave existing / use default
      */
-    public function bind(User $user, array $landings, ?string $name = null, int $position = 1): UserCompareGroup
-    {
+    public function bind(
+        User $user,
+        array $landings,
+        ?string $name = null,
+        int $position = 1,
+        ?int $notifyIntervalMinutes = null,
+    ): UserCompareGroup {
         if (count($landings) < 1) {
             throw new RuntimeException('Нужен хотя бы один лендинг.');
+        }
+
+        if ($notifyIntervalMinutes !== null) {
+            $notifyIntervalMinutes = max(
+                UserCompareGroup::INTERVAL_MIN,
+                min(UserCompareGroup::INTERVAL_MAX, $notifyIntervalMinutes),
+            );
         }
 
         // Mode policy: 1 landing → MVT (variant breakdown is the only thing
@@ -37,14 +50,18 @@ final class CompareGroupBinder
             ? UserCompareGroup::MODE_MVT
             : UserCompareGroup::MODE_COMPARE;
 
-        return DB::transaction(function () use ($user, $landings, $name, $position, $mode): UserCompareGroup {
+        return DB::transaction(function () use ($user, $landings, $name, $position, $mode, $notifyIntervalMinutes): UserCompareGroup {
             $name = $name !== null && $name !== '' ? $name : $this->autoName($user);
 
             // If a group with this name already exists for this user — replace
             // its members. Keeps `/bind` idempotent for the same name.
+            $defaults = ['paused_at' => null, 'mode' => $mode];
+            if ($notifyIntervalMinutes !== null) {
+                $defaults['notify_interval_minutes'] = $notifyIntervalMinutes;
+            }
             $group = UserCompareGroup::query()->updateOrCreate(
                 ['user_id' => $user->id, 'name' => $name],
-                ['paused_at' => null, 'mode' => $mode],
+                $defaults,
             );
             $group->members()->delete();
 

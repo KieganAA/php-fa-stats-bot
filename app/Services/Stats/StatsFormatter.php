@@ -11,6 +11,10 @@ use Carbon\CarbonInterface;
  * in columns and metrics in rows. Metric set (names + display order) comes
  * from MetricDisplay::defaultNames() unless the caller passes their own
  * list (per-user preference).
+ *
+ * `$labelOverrides` lets the caller swap the display caption for chosen
+ * metrics without changing the value-formatting kind (kind still comes from
+ * MetricDisplay). That's how the user's "rename Q Visits → Quals" plumbs in.
  */
 class StatsFormatter
 {
@@ -18,8 +22,9 @@ class StatsFormatter
      * @param  array{from: CarbonInterface, to: CarbonInterface, timezone: string, label: string}  $period
      * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
      * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
+     * @param  array<string, string>  $labelOverrides  AIO name → custom label
      */
-    public function format(array $period, array $entries, ?array $metricNames = null): string
+    public function format(array $period, array $entries, ?array $metricNames = null, array $labelOverrides = []): string
     {
         $names = $metricNames ?? MetricDisplay::defaultNames();
         $header = $this->header($period, count($entries));
@@ -28,8 +33,8 @@ class StatsFormatter
         }
 
         $body = count($entries) === 1
-            ? $this->blockLayout($entries[0], $names)
-            : $this->tableLayout($entries, $names);
+            ? $this->blockLayout($entries[0], $names, $labelOverrides)
+            : $this->tableLayout($entries, $names, $labelOverrides);
 
         return $header."\n\n".$body;
     }
@@ -46,22 +51,24 @@ class StatsFormatter
     /**
      * @param  array{label: string, metrics: array<string, int|float|null>}  $entry
      * @param  list<string>  $names
+     * @param  array<string, string>  $labelOverrides
      */
-    private function blockLayout(array $entry, array $names): string
+    private function blockLayout(array $entry, array $names, array $labelOverrides): string
     {
         if ($names === []) {
             return '<i>Не выбраны метрики для отображения.</i>';
         }
-        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 2, $names));
+        $labelOf = fn (string $n): string => $labelOverrides[$n] ?? MetricDisplay::label($n);
+        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen($labelOf($n)) + 2, $names));
 
         $lines = ['<b>'.$this->escape($entry['label']).'</b>'];
         foreach ($names as $name) {
             if (! array_key_exists($name, $entry['metrics'])) {
                 continue;
             }
-            $label = mb_str_pad(MetricDisplay::label($name), $labelWidth);
+            $label = mb_str_pad($labelOf($name), $labelWidth);
             $value = MetricDisplay::format($name, $entry['metrics'][$name]);
-            $lines[] = "<code>{$label}{$value}</code>";
+            $lines[] = "<code>{$this->escape($label.$value)}</code>";
         }
 
         return implode("\n", $lines);
@@ -70,15 +77,17 @@ class StatsFormatter
     /**
      * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
      * @param  list<string>  $names
+     * @param  array<string, string>  $labelOverrides
      */
-    private function tableLayout(array $entries, array $names): string
+    private function tableLayout(array $entries, array $names, array $labelOverrides): string
     {
         if ($names === []) {
             return '<i>Не выбраны метрики.</i>';
         }
+        $labelOf = fn (string $n): string => $labelOverrides[$n] ?? MetricDisplay::label($n);
         $colWidth = max(10, ...array_map(fn ($e) => mb_strlen($e['label']) + 1, $entries));
         $colWidth = min($colWidth, 20);
-        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $names));
+        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen($labelOf($n)) + 1, $names));
 
         $headerCols = mb_str_pad('', $labelWidth);
         foreach ($entries as $e) {
@@ -87,7 +96,7 @@ class StatsFormatter
         $lines = ["<code>{$this->escape(rtrim($headerCols))}</code>"];
 
         foreach ($names as $name) {
-            $row = mb_str_pad(MetricDisplay::label($name), $labelWidth);
+            $row = mb_str_pad($labelOf($name), $labelWidth);
             foreach ($entries as $e) {
                 $value = array_key_exists($name, $e['metrics'])
                     ? MetricDisplay::format($name, $e['metrics'][$name])

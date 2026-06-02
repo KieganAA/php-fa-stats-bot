@@ -1,0 +1,53 @@
+{
+    "manifest_version": 3,
+    "name": "bot-stats helper",
+    "short_name": "bot-stats",
+    "version": "0.3.0",
+    "description": "Шлёт ленды из AIO в Telegram-бота fa-stats для подписок и сравнений",
+
+    "icons": {
+        "16": "icons/icon-16.png",
+        "48": "icons/icon-48.png",
+        "128": "icons/icon-128.png"
+    },
+
+    "permissions": [
+        "storage",
+        "contextMenus",
+        "notifications"
+    ],
+
+    "host_permissions": [
+        "https://app.aio.tech/*",
+        "http://localhost/*",
+        "https://*/*"
+    ],
+
+    "action": {
+        "default_popup": "popup/popup.html",
+        "default_title": "bot-stats",
+        "default_icon": {
+            "16": "icons/icon-16.png",
+            "48": "icons/icon-48.png"
+        }
+    },
+
+    "background": {
+        "service_worker": "background.js",
+        "type": "module"
+    },
+
+    "content_scripts": [
+        {
+            "matches": ["https://app.aio.tech/*"],
+            "js": ["content.js"],
+            "css": ["content.css"],
+            "run_at": "document_idle"
+        }
+    ],
+
+    "options_ui": {
+        "page": "options/options.html",
+        "open_in_tab": false
+    }
+}

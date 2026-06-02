@@ -77,6 +77,46 @@ class SnapshotCommandTest extends TestCase
         Queue::assertPushed(NotifyCompareGroupJob::class, 1);
     }
 
+    public function test_fan_out_respects_per_group_interval(): void
+    {
+        Queue::fake();
+        $this->seedTargetMetrics();
+        $this->stubLandingReports();
+
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+        $b = $this->seedLanding(2);
+
+        // 1h interval, last pushed 30 min ago → NOT due.
+        $group = app(CompareGroupBinder::class)->bind($user, [$a, $b], name: 'g1', notifyIntervalMinutes: 60);
+        $group->last_notified_at = CarbonImmutable::now()->subMinutes(30);
+        $group->save();
+
+        $this->artisan('tracking:snapshot', ['--no-capture' => true])->assertSuccessful();
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_fan_out_fires_when_interval_elapsed(): void
+    {
+        Queue::fake();
+        $this->seedTargetMetrics();
+        $this->stubLandingReports();
+
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+        $b = $this->seedLanding(2);
+
+        // 1h interval, last pushed 90 min ago → due.
+        $group = app(CompareGroupBinder::class)->bind($user, [$a, $b], name: 'g1', notifyIntervalMinutes: 60);
+        $group->last_notified_at = CarbonImmutable::now()->subMinutes(90);
+        $group->save();
+
+        $this->artisan('tracking:snapshot', ['--no-capture' => true])->assertSuccessful();
+
+        Queue::assertPushed(NotifyCompareGroupJob::class, 1);
+    }
+
     public function test_no_notify_flag_skips_dispatch(): void
     {
         Queue::fake();

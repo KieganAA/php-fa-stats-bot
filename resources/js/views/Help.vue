@@ -1,0 +1,181 @@
+<template>
+    <div class="space-y-4 text-sm leading-relaxed">
+        <h2 class="text-lg font-semibold">Как пользоваться</h2>
+
+        <!-- TL;DR -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)] bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Если коротко</h3>
+            <p>
+                Это мини-апп для статистики из AIO. Открыл — выбрал страну/прокл/UUID, нажал
+                «Показать», получил цифры. Под капотом — те же отчёты, что бот шлёт в чат.
+            </p>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                Все данные тянутся прямо из AIO в реальном времени. Кэш 3 минуты, чтобы
+                не дёргать сервер на каждое нажатие.
+            </p>
+        </section>
+
+        <!-- С чего начать -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">С чего начать</h3>
+            <ol class="ml-4 list-decimal space-y-1.5">
+                <li>
+                    Сходи в <a href="#/settings" class="underline">Настройки</a> и проверь:
+                    часовой пояс (по умолчанию Москва UTC+3), период по умолчанию (сегодня),
+                    свой ключ Anthropic если хочешь AI-ответы на своей квоте.
+                </li>
+                <li>
+                    Открой <a href="#/stats" class="underline">📊 Статы</a> и попробуй: введи
+                    <code>DK</code> или номер прокла (<code>33169</code>) — получишь срез.
+                </li>
+                <li>
+                    Хочешь периодические уведомления? <a href="#/subs" class="underline">🔔 Подписки</a>
+                    — выбираешь ленды, частоту (1–24ч), бот сам шлёт в чат каждый интервал.
+                </li>
+            </ol>
+        </section>
+
+        <!-- Примитив -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Что такое «примитив»</h3>
+            <p>В любое поле «примитив» принимается что-то одно из:</p>
+            <ul class="ml-4 list-disc space-y-0.5">
+                <li><b>Код страны</b> — <code>DK</code>, <code>BR</code>, <code>IT</code>, <code>US</code>…</li>
+                <li><b>human_id лендинга</b> — <code>33169</code>, <code>205228</code>…</li>
+                <li><b>UUID лендинга</b> — полный идентификатор из AIO</li>
+            </ul>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                Кампании, баеры и источники как самостоятельные примитивы — пока не подключены.
+                Баеры доступны через вкладку Топы.
+            </p>
+        </section>
+
+        <!-- Period -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Период</h3>
+            <p>В мини-аппе — кнопки <code>Сегодня / Вчера / 24ч / 7д / Неделя / Месяц</code>.</p>
+            <p>
+                В чате с ботом период можно писать как угодно — парсер понимает:
+            </p>
+            <ul class="ml-4 list-disc space-y-0.5">
+                <li><code>today</code> / <code>сегодня</code> (по умолчанию)</li>
+                <li><code>yesterday</code> / <code>вчера</code> / <code>позавчера</code></li>
+                <li><code>7d</code>, <code>24h</code>, <code>2w</code>, <code>1m</code></li>
+                <li><code>неделя</code>, <code>прошлая неделя</code>, <code>за месяц</code></li>
+                <li><code>3 дня</code>, <code>5 часов</code></li>
+            </ul>
+        </section>
+
+        <!-- Stats tab -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">📊 Статы</h3>
+            <p>Три режима, переключаются вверху страницы:</p>
+            <ul class="ml-4 list-disc space-y-1">
+                <li>
+                    <b>Один</b> — одно значение примитива. Удобный блок с метриками построчно.
+                    Покажет тебе цифры выбранной страны/прокла за период.
+                </li>
+                <li>
+                    <b>Сравнить</b> — два или больше примитива одного типа (только страны или
+                    только ленды). На двух ещё рисует колонку Δ% — разница в процентах слева
+                    направо.
+                </li>
+                <li>
+                    <b>MVT</b> — разбивка одного ленда по вариантам (lp_header, картинка,
+                    подзаголовок и т.д.). Видишь какой вариант выигрывает.
+                </li>
+            </ul>
+        </section>
+
+        <!-- Top tab -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">🏆 Топы</h3>
+            <p>Топ-15 за период в одну сторону. Четыре среза:</p>
+            <ul class="ml-4 list-disc space-y-0.5">
+                <li><b>🌍 Гео</b> — топ стран по лидам</li>
+                <li><b>👤 Баеры</b> — топ campaign_owner по лидам</li>
+                <li><b>📄 LP1 / LP2</b> — топ лендов по позиции в воронке</li>
+            </ul>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                Таблицы заточены под телефон — 3 колонки метрик, fix-width шрифт, нет
+                переноса строк. Под каждый срез свой пресет метрик (см. Настройки).
+            </p>
+        </section>
+
+        <!-- Subs tab -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">🔔 Подписки</h3>
+            <p>Бот сам шлёт в чат отчёт каждые N часов по выбранным лендингам.</p>
+            <ol class="ml-4 list-decimal space-y-1">
+                <li>Жми в поиск ленда (по id, стране или названию) — подсказки выпадают по мере ввода.</li>
+                <li>Кликом добавляешь ленд в список. ↑/↓ — порядок, × — убрать.</li>
+                <li>Выбираешь частоту: <b>1ч / 3ч / 6ч / 12ч / 24ч</b>.</li>
+                <li>Сохраняешь — бот будет слать пуш по расписанию.</li>
+            </ol>
+            <p>
+                Один ленд → MVT-пуш (разбивка по вариантам). Два и больше → compare с Δ%
+                (сравнение между лендами).
+            </p>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                Кнопки в списке подписок: ⏸/▶ пауза, ⏱ изменить частоту, × удалить.
+            </p>
+        </section>
+
+        <!-- Settings tab -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">⚙️ Настройки</h3>
+
+            <p><b>Общие</b> — часовой пояс, период по умолчанию, позиция в воронке.</p>
+
+            <p><b>Отображение лендингов</b> — что показывать в таблицах. По умолчанию только
+                <code>#id · страна</code>. Можно добавить тип ленда и/или полное имя.</p>
+
+            <p>
+                <b>Метрики по контексту</b> — главная фича. У каждой команды свой набор колонок.
+                Под <b>geo</b> — 3 узкие колонки чтоб поместилось на телефон, под <b>stats</b> —
+                широкий набор из 7. Точка <span class="text-[10px]">●</span> рядом с табом
+                означает «свой пресет, не дефолтный». Сбросить на дефолт — кнопка справа сверху.
+            </p>
+
+            <p>
+                <b>Переименовать метрики</b> — глобально, во всех отчётах. Пример:
+                <code>Q Visits</code> → <i>Quals</i>, <code>Real Approve</code> → <i>CR</i>.
+                Подпись меняется одна на все таблицы.
+            </p>
+
+            <p>
+                <b>Anthropic</b> — свой ключ для AI-ответов в чате. Пустой → используется
+                общий серверный.
+            </p>
+        </section>
+
+        <!-- Chat -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">💬 Бот в чате</h3>
+            <p>Команды дублируют вкладки, плюс есть свободный ввод:</p>
+            <ul class="ml-4 list-disc space-y-0.5">
+                <li><code>/stats &lt;id|страна&gt; [период]</code></li>
+                <li><code>/compare &lt;a&gt; &lt;b&gt; [...] [период]</code></li>
+                <li><code>/geo</code>, <code>/buyers</code>, <code>/lps1</code>, <code>/lps2</code></li>
+                <li><code>/mvt &lt;id&gt;</code></li>
+                <li><code>/bind</code>, <code>/groups</code>, <code>/unbind</code> — управление подписками с командной строки</li>
+            </ul>
+            <p>
+                Можно писать <b>свободным текстом</b> — <code>как DK</code>,
+                <code>33169 за неделю</code>, <code>сравни DK и BR</code>. AI (Claude) разбирает
+                русский, сам решает что вызвать.
+            </p>
+        </section>
+
+        <!-- Tech notes -->
+        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Про данные</h3>
+            <ul class="ml-4 list-disc space-y-0.5">
+                <li>Цифры тянутся из AIO напрямую, кэш 3 минуты.</li>
+                <li>Время в отчётах — в твоём часовом поясе из Настроек.</li>
+                <li>«Сегодня» — это полночь→сейчас в твоей тз.</li>
+                <li>Метрики имеют четыре формата: count (15.2K), ratio (12.3%), percent, money ($).</li>
+            </ul>
+        </section>
+    </div>
+</template>

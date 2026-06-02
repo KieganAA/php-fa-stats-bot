@@ -1,43 +1,43 @@
 <template>
     <div class="space-y-4">
-        <h2 class="text-lg font-semibold">Settings</h2>
+        <h2 class="text-lg font-semibold">Настройки</h2>
 
         <!-- Profile (read-only) -->
         <div v-if="me" class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Profile</div>
+            <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Профиль</div>
             <div class="text-sm">
                 <div class="font-medium">{{ me.display_name }}</div>
                 <div class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-                    TG id: {{ me.telegram_user_id }} · internal #{{ me.id }}
+                    TG id: {{ me.telegram_user_id }} · внутр. #{{ me.id }}
                 </div>
             </div>
         </div>
 
         <!-- Preferences -->
         <form v-if="me" @submit.prevent="save" class="space-y-3 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Preferences</div>
+            <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Общие</div>
 
             <label class="block">
-                <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Timezone</span>
+                <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Часовой пояс</span>
                 <input
                     v-model="form.timezone"
-                    placeholder="UTC"
+                    placeholder="Europe/Moscow"
                     class="w-full mt-1 px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
                 />
             </label>
 
             <label class="block">
-                <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Default period</span>
+                <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Период по умолчанию</span>
                 <select
                     v-model="form.default_period"
                     class="w-full mt-1 px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
                 >
-                    <option v-for="p in periods" :key="p" :value="p">{{ p }}</option>
+                    <option v-for="p in periodOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
                 </select>
             </label>
 
             <label class="block">
-                <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Default position</span>
+                <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Позиция в воронке по умолчанию</span>
                 <select
                     v-model.number="form.default_position"
                     class="w-full mt-1 px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
@@ -50,7 +50,7 @@
                 type="submit"
                 class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
                 :disabled="saving"
-            >{{ saving ? 'Saving…' : (saved ? '✓ Saved' : 'Save') }}</button>
+            >{{ saving ? 'Сохраняю…' : (saved ? '✓ Сохранено' : 'Сохранить') }}</button>
         </form>
 
         <!-- Landing display options -->
@@ -74,28 +74,49 @@
                 type="submit"
                 class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
                 :disabled="savingLanding || !landingChanged"
-            >{{ savingLanding ? 'Saving…' : (landingSaved ? '✓ Saved' : 'Save') }}</button>
+            >{{ savingLanding ? 'Сохраняю…' : (landingSaved ? '✓ Сохранено' : 'Сохранить') }}</button>
         </form>
 
-        <!-- Metric picker -->
-        <div v-if="me" class="space-y-3 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <div class="flex items-baseline justify-between">
-                <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">
-                    Метрики в отчётах
-                </div>
+        <!-- Per-context metric presets -->
+        <div
+            v-if="me"
+            ref="metricsSection"
+            class="space-y-3 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
+        >
+            <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">
+                Метрики по контексту
+            </div>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                Под каждую команду — свой набор. Например <b>geo</b> 3 колонки на телефоне,
+                а <b>stats</b> широкий со всеми семью.
+            </p>
+
+            <!-- Context tabs -->
+            <div class="flex gap-1 overflow-x-auto p-0.5 -mx-0.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)]">
                 <button
-                    v-if="me.metrics_customized"
+                    v-for="c in contexts"
+                    :key="c.id"
                     type="button"
-                    class="text-xs underline text-[var(--tg-theme-hint-color,#6b7280)]"
-                    @click="resetMetrics"
-                    :disabled="savingMetrics"
-                >reset</button>
+                    class="shrink-0 px-2.5 py-1 rounded-md text-xs transition-colors"
+                    :class="activeContext === c.id
+                        ? 'bg-[var(--tg-theme-bg-color,#fff)] font-medium shadow-sm'
+                        : 'text-[var(--tg-theme-hint-color,#6b7280)]'"
+                    @click="activeContext = c.id"
+                >{{ c.label }}<span v-if="customized(c.id)" class="ml-0.5 text-[10px]">●</span></button>
             </div>
 
-            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-                Что показывать в /stats, /compare, /bind пушах. Если выбрано
-                ничего — используются дефолты.
-            </p>
+            <div class="flex items-baseline justify-between">
+                <div class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                    {{ contextDescription }}
+                </div>
+                <button
+                    v-if="customized(activeContext)"
+                    type="button"
+                    class="text-xs underline text-[var(--tg-theme-hint-color,#6b7280)]"
+                    :disabled="savingMetrics"
+                    @click="resetContext"
+                >сбросить → дефолт</button>
+            </div>
 
             <input
                 v-model="metricSearch"
@@ -103,9 +124,11 @@
                 class="w-full px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
             />
 
-            <!-- Selected: ordered, draggable up/down -->
+            <!-- Picked, draggable up/down. Per-name label override editable inline. -->
             <div v-if="picked.length" class="space-y-1">
-                <div class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Выбрано ({{ picked.length }}):</div>
+                <div class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                    Выбрано ({{ picked.length }}):
+                </div>
                 <ul class="space-y-0.5">
                     <li
                         v-for="(name, i) in picked"
@@ -113,7 +136,12 @@
                         class="flex items-center gap-1 text-sm py-1 px-2 rounded bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)]"
                     >
                         <span class="text-[10px] text-[var(--tg-theme-hint-color,#6b7280)] w-5">{{ i + 1 }}.</span>
-                        <span class="flex-1 truncate">{{ name }}</span>
+                        <span class="flex-1 min-w-0">
+                            <span class="block truncate text-[13px]">{{ name }}</span>
+                            <span class="block text-[10px] text-[var(--tg-theme-hint-color,#6b7280)] truncate">
+                                подпись: <i>{{ effectiveLabel(name) }}</i>
+                            </span>
+                        </span>
                         <span class="text-[10px] text-[var(--tg-theme-hint-color,#6b7280)] px-1.5 rounded">{{ kindOf(name) }}</span>
                         <button type="button" class="text-xs px-1 disabled:opacity-30" :disabled="i === 0" @click="move(i, -1)">↑</button>
                         <button type="button" class="text-xs px-1 disabled:opacity-30" :disabled="i === picked.length - 1" @click="move(i, +1)">↓</button>
@@ -122,7 +150,7 @@
                 </ul>
             </div>
 
-            <!-- Available: filtered by search -->
+            <!-- Available -->
             <div v-if="filteredAvailable.length" class="max-h-64 overflow-auto space-y-0.5 border border-[var(--tg-theme-section-separator-color,#e5e7eb)] rounded p-1">
                 <button
                     v-for="m in filteredAvailable"
@@ -140,15 +168,70 @@
             <button
                 type="button"
                 class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
-                :disabled="savingMetrics || !metricsChanged"
-                @click="saveMetrics"
-            >{{ savingMetrics ? 'Saving…' : (metricsSaved ? '✓ Saved' : `Save metrics (${picked.length})`) }}</button>
+                :disabled="savingMetrics || !contextChanged"
+                @click="saveContext"
+            >{{ savingMetrics ? 'Сохраняю…' : (metricsSaved ? '✓ Сохранено' : `Сохранить ${activeContextLabel} (${picked.length})`) }}</button>
+        </div>
+
+        <!-- Renamed metrics (global per-name overrides) -->
+        <div v-if="me" class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
+            <div class="flex items-baseline justify-between">
+                <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">
+                    Переименовать метрики
+                </div>
+                <button
+                    type="button"
+                    class="text-xs px-2 py-0.5 rounded border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
+                    @click="addLabelOverride"
+                >+ добавить</button>
+            </div>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                Своя подпись метрики во всех отчётах. Пример: <code>Q Visits</code> → <i>Quals</i>.
+            </p>
+
+            <ul v-if="labelRows.length" class="space-y-1">
+                <li
+                    v-for="(row, i) in labelRows"
+                    :key="i"
+                    class="flex items-center gap-1 text-xs"
+                >
+                    <select
+                        v-model="row.name"
+                        class="flex-1 min-w-0 px-2 py-1 rounded bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
+                    >
+                        <option value="">(выбери метрику)</option>
+                        <option v-for="m in allMetrics" :key="m.name" :value="m.name">{{ m.name }}</option>
+                    </select>
+                    <span class="text-[var(--tg-theme-hint-color,#6b7280)]">→</span>
+                    <input
+                        v-model="row.label"
+                        placeholder="подпись"
+                        maxlength="32"
+                        class="w-24 px-2 py-1 rounded bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
+                    />
+                    <button
+                        type="button"
+                        class="text-xs px-1.5 text-red-500"
+                        @click="labelRows.splice(i, 1)"
+                    >×</button>
+                </li>
+            </ul>
+            <p v-else class="text-xs text-[var(--tg-theme-hint-color,#6b7280)] italic">
+                Нет переименований — везде используются стандартные подписи.
+            </p>
+
+            <button
+                type="button"
+                class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
+                :disabled="savingLabels || !labelsChanged"
+                @click="saveLabels"
+            >{{ savingLabels ? 'Сохраняю…' : (labelsSaved ? '✓ Сохранено' : 'Сохранить подписи') }}</button>
         </div>
 
         <!-- AI keys (Phase I) -->
         <form v-if="me" @submit.prevent="saveAi" class="space-y-3 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
             <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">
-                Anthropic (для /ai)
+                Anthropic (для AI-ответов в чате)
             </div>
             <label class="block">
                 <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
@@ -178,7 +261,7 @@
                     type="submit"
                     class="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
                     :disabled="savingAi"
-                >{{ savingAi ? 'Saving…' : (savedAi ? '✓ Saved' : 'Save AI settings') }}</button>
+                >{{ savingAi ? 'Сохраняю…' : (savedAi ? '✓ Сохранено' : 'Сохранить AI') }}</button>
                 <button
                     v-if="me.anthropic_key_hint"
                     type="button"
@@ -194,9 +277,22 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { hapticImpact, showConfirm } from '../telegram.js';
+
+// Pull `?context=...` out of the hash query without depending on vue-router's
+// useRoute() — that hook expects the router to be fully resolved at script
+// eval time, and some Telegram WebViews seem to choke on it (resulting in a
+// blank Mini App). Plain hash parsing always works.
+function readContextFromHash() {
+    const hash = window.location.hash || '';
+    const i = hash.indexOf('?');
+    if (i === -1) return null;
+    const params = new URLSearchParams(hash.slice(i + 1));
+    const ctx = params.get('context');
+    return typeof ctx === 'string' && ctx !== '' ? ctx : null;
+}
 
 const me = ref(null);
 const form = reactive({ timezone: '', default_period: '', default_position: 1 });
@@ -216,15 +312,55 @@ const landingChanged = computed(() =>
     landingForm.show_name !== landingInitial.show_name,
 );
 
-// Metric picker state
+// Per-context picker state — picked is the current tab's editable copy;
+// initial snapshots hold what the server returned so we can diff for "changed".
 const allMetrics = ref([]);
+// Honour ?context=geo (etc.) from deep-links — e.g. the "настроить метрики →"
+// link on the Топы screen jumps straight to the matching tab. Falls back to
+// 'stats' for unknown values so a bad query string can't break the screen.
+const KNOWN_CONTEXTS = ['stats', 'compare', 'geo', 'buyers', 'lp1', 'lp2', 'mvt', 'tracking'];
+const deepLinkContext = readContextFromHash();
+const cameFromDeepLink = deepLinkContext !== null && KNOWN_CONTEXTS.includes(deepLinkContext);
+const initialContext = cameFromDeepLink ? deepLinkContext : 'stats';
+const activeContext = ref(initialContext);
+const metricsSection = ref(null);
 const picked = ref([]);
-const pickedInitial = ref([]);
+const pickedInitial = ref({}); // { context: list<name> }
 const metricSearch = ref('');
 const savingMetrics = ref(false);
 const metricsSaved = ref(false);
 
-const periods = ['today', 'yesterday', '24h', '7d', 'week', 'month'];
+// Per-name label overrides. labelRows is an editable {name,label} list (allows
+// duplicates / empty slots while typing); save dedupes + drops empties.
+const labelRows = ref([]);
+const labelInitial = ref({}); // server snapshot
+const savingLabels = ref(false);
+const labelsSaved = ref(false);
+
+// Period options for the "default period" dropdown. Value goes back as-is
+// to the API (PeriodParser understands both en and ru forms).
+const periodOptions = [
+    { value: 'today', label: 'Сегодня' },
+    { value: 'yesterday', label: 'Вчера' },
+    { value: '24h', label: 'За 24 часа' },
+    { value: '7d', label: 'За 7 дней' },
+    { value: 'week', label: 'Эта неделя' },
+    { value: 'month', label: 'Этот месяц' },
+];
+
+const contexts = [
+    { id: 'stats', label: 'stats', desc: 'Одиночный примитив — /stats DK, бот в чате' },
+    { id: 'compare', label: 'compare', desc: '/compare двух+ примитивов с Δ%' },
+    { id: 'geo', label: 'geo', desc: '/geo — топ стран' },
+    { id: 'buyers', label: 'buyers', desc: '/buyers — топ баеров' },
+    { id: 'lp1', label: 'lp1', desc: '/lps1 — топ лендингов на LP1' },
+    { id: 'lp2', label: 'lp2', desc: '/lps2 — топ лендингов на LP2' },
+    { id: 'mvt', label: 'mvt', desc: '/mvt — разбивка по вариантам ленда' },
+    { id: 'tracking', label: 'push', desc: '3h-пуш привязанных групп' },
+];
+
+const contextDescription = computed(() => contexts.find((c) => c.id === activeContext.value)?.desc ?? '');
+const activeContextLabel = computed(() => contexts.find((c) => c.id === activeContext.value)?.label ?? activeContext.value);
 
 const metricsByName = computed(() => {
     const out = {};
@@ -238,12 +374,34 @@ const filteredAvailable = computed(() => {
         (m) => !pickedSet.has(m.name) && (q === '' || m.name.toLowerCase().includes(q)),
     );
 });
-const metricsChanged = computed(
-    () => JSON.stringify(picked.value) !== JSON.stringify(pickedInitial.value),
+const contextChanged = computed(
+    () => JSON.stringify(picked.value) !== JSON.stringify(pickedInitial.value[activeContext.value] ?? []),
 );
+
+// Map of name → current pending label (from labelRows). Used to preview
+// what the row label will become once saved.
+const pendingLabels = computed(() => {
+    const out = {};
+    for (const r of labelRows.value) {
+        const n = (r.name || '').trim();
+        const l = (r.label || '').trim();
+        if (n !== '' && l !== '') out[n] = l;
+    }
+    return out;
+});
+const labelsChanged = computed(() => {
+    return JSON.stringify(pendingLabels.value) !== JSON.stringify(labelInitial.value);
+});
 
 function kindOf(name) {
     return metricsByName.value[name]?.kind ?? '?';
+}
+function effectiveLabel(name) {
+    // Live preview — pending edits win over saved overrides win over the built-in.
+    return pendingLabels.value[name] ?? me.value?.metric_labels?.[name] ?? metricsByName.value[name]?.label ?? name;
+}
+function customized(context) {
+    return !!me.value?.metric_presets?.[context]?.customized;
 }
 
 function toggle(name) {
@@ -252,7 +410,6 @@ function toggle(name) {
     else picked.value.push(name);
     hapticImpact('light');
 }
-
 function move(idx, delta) {
     const newIdx = idx + delta;
     if (newIdx < 0 || newIdx >= picked.value.length) return;
@@ -261,9 +418,25 @@ function move(idx, delta) {
     picked.value[newIdx] = tmp;
 }
 
+function addLabelOverride() {
+    labelRows.value.push({ name: '', label: '' });
+}
+
 async function load() {
     try {
         me.value = await api.me();
+        // After me loads the per-context metrics section becomes visible.
+        // Deep-link visitors land directly on that section so they don't have
+        // to scroll past Profile / Preferences / Landing display first.
+        if (cameFromDeepLink) {
+            // Wait for the v-if="me" branch to render before scrolling.
+            await nextTick();
+            try {
+                metricsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch {
+                // Older WebViews don't support smooth-scroll options — non-fatal.
+            }
+        }
         form.timezone = me.value.timezone;
         form.default_period = me.value.default_period;
         form.default_position = me.value.default_position;
@@ -276,11 +449,19 @@ async function load() {
         landingInitial.show_type = landingForm.show_type;
         landingInitial.show_name = landingForm.show_name;
 
-        const m = await api.listMetrics();
-        allMetrics.value = m.metrics;
+        const mlist = await api.listMetrics();
+        allMetrics.value = mlist.metrics;
 
-        picked.value = me.value.metrics.map((x) => x.name);
-        pickedInitial.value = [...picked.value];
+        // Snapshot every context's name list — we'll swap into `picked` on tab switch.
+        pickedInitial.value = {};
+        for (const c of contexts) {
+            pickedInitial.value[c.id] = me.value.metric_presets?.[c.id]?.names ?? [];
+        }
+        picked.value = [...(pickedInitial.value[activeContext.value] ?? [])];
+
+        // Label overrides — initial copy + editable rows.
+        labelInitial.value = { ...(me.value.metric_labels ?? {}) };
+        labelRows.value = Object.entries(labelInitial.value).map(([name, label]) => ({ name, label }));
     } catch (e) {
         error.value = e.message;
     }
@@ -333,31 +514,51 @@ async function clearKey() {
     } catch (e) { error.value = e.message; } finally { savingAi.value = false; }
 }
 
-async function saveMetrics() {
+async function saveContext() {
     savingMetrics.value = true; metricsSaved.value = false; error.value = null;
     try {
-        me.value = await api.setMetrics(picked.value);
-        pickedInitial.value = [...picked.value];
+        me.value = await api.setContextMetrics(activeContext.value, picked.value);
+        pickedInitial.value[activeContext.value] = me.value.metric_presets?.[activeContext.value]?.names ?? [];
+        picked.value = [...pickedInitial.value[activeContext.value]];
         metricsSaved.value = true;
         hapticImpact('light');
     } catch (e) { error.value = e.message; } finally { savingMetrics.value = false; }
 }
 
-async function resetMetrics() {
-    if (!(await showConfirm('Сбросить к дефолтам?'))) return;
+async function resetContext() {
+    if (!(await showConfirm(`Сбросить ${activeContext.value} к дефолтам?`))) return;
     savingMetrics.value = true; error.value = null;
     try {
-        me.value = await api.setMetrics(null);
-        picked.value = me.value.metrics.map((x) => x.name);
-        pickedInitial.value = [...picked.value];
+        me.value = await api.setContextMetrics(activeContext.value, null);
+        pickedInitial.value[activeContext.value] = me.value.metric_presets?.[activeContext.value]?.names ?? [];
+        picked.value = [...pickedInitial.value[activeContext.value]];
         hapticImpact('rigid');
     } catch (e) { error.value = e.message; } finally { savingMetrics.value = false; }
 }
+
+async function saveLabels() {
+    savingLabels.value = true; labelsSaved.value = false; error.value = null;
+    try {
+        me.value = await api.setMetricLabels(pendingLabels.value);
+        labelInitial.value = { ...(me.value.metric_labels ?? {}) };
+        labelRows.value = Object.entries(labelInitial.value).map(([name, label]) => ({ name, label }));
+        labelsSaved.value = true;
+        hapticImpact('light');
+    } catch (e) { error.value = e.message; } finally { savingLabels.value = false; }
+}
+
+// Tab switch — load that context's saved picks into the editable copy.
+watch(activeContext, (ctx) => {
+    picked.value = [...(pickedInitial.value[ctx] ?? [])];
+    metricsSaved.value = false;
+    metricSearch.value = '';
+});
 
 watch([() => form.timezone, () => form.default_period, () => form.default_position], () => {
     saved.value = false;
 });
 watch(picked, () => { metricsSaved.value = false; }, { deep: true });
+watch(labelRows, () => { labelsSaved.value = false; }, { deep: true });
 
 onMounted(load);
 </script>

@@ -9,6 +9,7 @@ use App\Services\Ai\AiHandler;
 use App\Services\Ai\AiRateLimiter;
 use App\Services\Auth\AppContext;
 use App\Services\Stats\LandingFormatter;
+use App\Services\Stats\MetricColumnResolver;
 use App\Services\Stats\MvtFormatter;
 use App\Services\Stats\MvtReporter;
 use App\Services\Stats\PeriodParser;
@@ -112,14 +113,21 @@ final class TelegramHelpers
     /**
      * Inline keyboard with a single "open Mini App" button. Returns null if
      * APP_URL isn't set / isn't HTTPS — callers should fall back to text.
+     *
+     * Optional `$hash` lands the user inside the Mini App at a specific route,
+     * e.g. '#/help' for the in-app guide. Vue router uses hash-history so this
+     * works without backend changes.
      */
-    public static function openMiniAppKeyboard(?string $label = null): ?InlineKeyboardMarkup
+    public static function openMiniAppKeyboard(?string $label = null, ?string $hash = null): ?InlineKeyboardMarkup
     {
         $appUrl = (string) config('app.url', '');
         if ($appUrl === '') {
             return null;
         }
         $url = rtrim($appUrl, '/').'/app';
+        if ($hash !== null && $hash !== '') {
+            $url .= str_starts_with($hash, '#') ? $hash : ('#'.$hash);
+        }
 
         if (! str_starts_with($url, 'https://')) {
             return null;
@@ -169,7 +177,8 @@ final class TelegramHelpers
                 timezone: $window['timezone'],
             );
 
-            $names = $user?->metricPreferences();
+            $names = $user?->metricNamesFor(MetricColumnResolver::STATS);
+            $labels = $user?->metricLabelOverrides() ?? [];
             $resolved = app(LandingFormatter::class)->enrichLabel(
                 $resolved,
                 $user?->landingDisplayOpts() ?? [],
@@ -180,7 +189,7 @@ final class TelegramHelpers
 
             return app(StatsFormatter::class)->format($window, [
                 ['label' => $resolved['label'], 'metrics' => $projected],
-            ], $names);
+            ], $names, $labels);
         });
 
         return true;
@@ -216,11 +225,14 @@ final class TelegramHelpers
             }
 
             self::withPlaceholder($bot, function () use ($landing, $period): string {
-                $tz = app(AppContext::class)->user()?->timezone;
-                $window = app(PeriodParser::class)->parse($period, $tz);
+                $user = app(AppContext::class)->user();
+                $window = app(PeriodParser::class)->parse($period, $user?->timezone);
                 $report = app(MvtReporter::class)->report($landing, $window);
 
-                return app(MvtFormatter::class)->format($report);
+                $names = $user?->metricNamesFor(MetricColumnResolver::MVT);
+                $labels = $user?->metricLabelOverrides() ?? [];
+
+                return app(MvtFormatter::class)->format($report, $names, $labels);
             });
         } catch (Throwable $e) {
             $bot->sendMessage('Ошибка: '.$e->getMessage());
@@ -238,11 +250,27 @@ final class TelegramHelpers
         self::withPlaceholder($bot, function () use ($kind, $period): string {
             $user = app(AppContext::class)->user();
             $window = app(PeriodParser::class)->parse($period, $user?->timezone);
-            $names = $user?->hasCustomMetricPreferences()
-                ? array_slice($user->metricPreferences(), 0, 3)
-                : null;
 
-            return app(RankingReporter::class)->report($kind, $window, metricNames: $names);
+            // Map command -> resolver context. /lps1 == lp1 etc.
+            $context = match ($kind) {
+                'lp1' => MetricColumnResolver::LP1,
+                'lp2' => MetricColumnResolver::LP2,
+                'buyers' => MetricColumnResolver::BUYERS,
+                default => MetricColumnResolver::GEO,
+            };
+            $names = $user?->metricNamesFor($context);
+            // Phone budget caps at 4 columns even if the preset goes wider.
+            if ($names !== null && count($names) > 4) {
+                $names = array_slice($names, 0, 4);
+            }
+            $labels = $user?->metricLabelOverrides() ?? [];
+
+            return app(RankingReporter::class)->report(
+                $kind,
+                $window,
+                metricNames: $names,
+                labelOverrides: $labels,
+            );
         });
     }
 

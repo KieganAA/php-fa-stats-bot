@@ -1,0 +1,205 @@
+:root {
+    color-scheme: light dark;
+    --bg: #fff;
+    --fg: #111;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --soft: #f3f4f6;
+    --accent: #3b82f6;
+    --danger: #ef4444;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1f2937;
+        --fg: #f3f4f6;
+        --muted: #9ca3af;
+        --border: #374151;
+        --soft: #111827;
+    }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+    width: 360px;
+    max-height: 600px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--bg);
+}
+main { padding: 10px 12px; }
+.hidden { display: none !important; }
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.header strong { font-size: 14px; }
+.link {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--muted);
+}
+
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 12px 0 6px;
+    font-weight: 600;
+}
+.count {
+    font-weight: 400;
+    color: var(--muted);
+    text-transform: none;
+}
+
+.who {
+    padding: 6px 8px;
+    background: var(--soft);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+.who b { color: var(--fg); }
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+.row span { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+input, select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.primary, .secondary {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    margin-top: 6px;
+}
+.primary {
+    background: var(--accent);
+    color: white;
+}
+.primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.secondary {
+    background: var(--soft);
+    color: var(--fg);
+    border: 1px solid var(--border);
+}
+
+.picked {
+    margin: 6px 0;
+}
+.chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    background: var(--soft);
+    border-radius: 4px;
+    font-size: 12px;
+    margin: 2px 0;
+}
+.chip .idx { color: var(--muted); width: 16px; font-size: 10px; }
+.chip .label { flex: 1; }
+.chip button { background: none; border: none; cursor: pointer; padding: 2px 6px; font-size: 12px; }
+.chip .drop { color: var(--danger); }
+
+.suggestions {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+}
+.suggestions li {
+    padding: 6px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+}
+.suggestions li:last-child { border-bottom: none; }
+.suggestions li:hover { background: var(--soft); }
+.suggestions .label { font-weight: 500; }
+.suggestions .meta { font-size: 10px; color: var(--muted); display: block; }
+.suggestions .picked-state {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.error {
+    color: var(--danger);
+    font-size: 11px;
+    padding: 4px 0;
+}
+
+.groups {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.group {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+.group .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.group .meta-row {
+    color: var(--muted);
+    font-size: 10px;
+    margin-top: 2px;
+}
+.group .members {
+    margin: 4px 0 0 0;
+    padding-left: 14px;
+    font-size: 11px;
+    color: var(--muted);
+}
+.group .badge {
+    background: var(--soft);
+    color: var(--muted);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+.group .name { font-family: ui-monospace, Menlo, monospace; }
+.group-actions { display: flex; gap: 4px; }
+.group-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 2px 4px;
+    font-size: 12px;
+}
+.group-actions .del { color: var(--danger); }

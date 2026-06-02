@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>bot-stats — настройки</title>
+    <link rel="stylesheet" href="../popup/popup.css">
+</head>
+<body>
+    <main>
+        <h1 style="margin-top:0;">Настройки bot-stats</h1>
+
+        <label class="row">
+            <span style="width: 60px;">API URL</span>
+            <input id="api-url" placeholder="https://your-bot-stats.example/" autocomplete="off">
+        </label>
+        <p class="hint" style="font-size: 11px; color: var(--muted); margin: 0 0 8px 0;">
+            URL твоего bot-stats сервера. Бот пришлёт его вместе с токеном после <code>/extension_token</code>.
+        </p>
+
+        <label class="row">
+            <span style="width: 60px;">Токен</span>
+            <input id="token" type="password" placeholder="bsx_…" autocomplete="off">
+        </label>
+        <p class="hint" style="font-size: 11px; color: var(--muted); margin: 0 0 8px 0;">
+            Получи в боте: <code>/extension_token</code> в чате @AIO_FA_Stats_Bot.
+        </p>
+
+        <button id="save" class="primary">Сохранить</button>
+
+        <p id="status" class="hint" style="font-size: 11px; color: var(--muted); margin-top: 10px;"></p>
+
+        <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border);">
+
+        <h2 style="text-transform: uppercase; font-size: 11px; color: var(--muted);">Поведение</h2>
+
+        <label class="row" style="cursor: pointer;">
+            <input type="checkbox" id="show-panel" style="flex: 0 0 auto; width: auto; margin: 0 8px 0 0;">
+            <span style="flex: 1; color: var(--fg); font-size: 12px;">Показывать плавающую панель на app.aio.tech</span>
+        </label>
+        <p class="hint" style="font-size: 11px; color: var(--muted); margin: 0 0 12px 22px;">
+            Если выключить — кнопки «＋» у лендов и пункт правого клика продолжают работать,
+            просто пропадёт перетаскиваемая панель с подборкой.
+        </p>
+
+        <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border);">
+
+        <h2 style="text-transform: uppercase; font-size: 11px; color: var(--muted);">Как пользоваться</h2>
+        <ol style="font-size: 12px; padding-left: 18px;">
+            <li>В Telegram запусти <code>/extension_token</code> — получишь токен и URL.</li>
+            <li>Вставь сюда, нажми «Сохранить».</li>
+            <li>Открой <code>app.aio.tech</code> — рядом с лендами появятся чекбоксы. Отметь нужные.</li>
+            <li>Кликни иконку расширения → «Создать подписку» → выбери частоту → готово.</li>
+        </ol>
+
+        <p style="font-size: 11px; color: var(--muted);">
+            Альтернативно: выдели в любом тексте список id (<code>33169, 205215</code>) → правый клик →
+            «Отправить в bot-stats». Откроется popup с уже подгруженными лендами.
+        </p>
+    </main>
+    <script type="module" src="options.js"></script>
+</body>
+</html>

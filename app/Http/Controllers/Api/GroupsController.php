@@ -47,6 +47,11 @@ class GroupsController
             'primitives' => 'required|array|min:1',
             'primitives.*' => 'string|max:64',
             'name' => 'sometimes|nullable|string|max:64',
+            'notify_interval_minutes' => sprintf(
+                'sometimes|nullable|integer|min:%d|max:%d',
+                UserCompareGroup::INTERVAL_MIN,
+                UserCompareGroup::INTERVAL_MAX,
+            ),
         ]);
 
         $landings = [];
@@ -64,7 +69,12 @@ class GroupsController
             $landings[] = $landing;
         }
 
-        $group = $binder->bind($ctx->userOrFail(), $landings, $data['name'] ?? null);
+        $group = $binder->bind(
+            $ctx->userOrFail(),
+            $landings,
+            $data['name'] ?? null,
+            notifyIntervalMinutes: $data['notify_interval_minutes'] ?? null,
+        );
 
         return response()->json([
             'group' => $this->serialize($group->load('members.trackedLanding.landing')),
@@ -81,6 +91,11 @@ class GroupsController
         $data = $request->validate([
             'paused' => 'sometimes|boolean',
             'name' => 'sometimes|string|max:64',
+            'notify_interval_minutes' => sprintf(
+                'sometimes|integer|min:%d|max:%d',
+                UserCompareGroup::INTERVAL_MIN,
+                UserCompareGroup::INTERVAL_MAX,
+            ),
         ]);
 
         if (array_key_exists('paused', $data)) {
@@ -88,6 +103,9 @@ class GroupsController
         }
         if (array_key_exists('name', $data)) {
             $group->name = $data['name'];
+        }
+        if (array_key_exists('notify_interval_minutes', $data)) {
+            $group->notify_interval_minutes = (int) $data['notify_interval_minutes'];
         }
         $group->save();
 
@@ -109,12 +127,17 @@ class GroupsController
 
     private function serialize(UserCompareGroup $group): array
     {
+        $interval = (int) ($group->notify_interval_minutes ?? UserCompareGroup::DEFAULT_INTERVAL_MINUTES);
+        $nextPushAt = $group->last_notified_at?->copy()->addMinutes($interval);
+
         return [
             'id' => $group->id,
             'name' => $group->name,
             'mode' => $group->mode,
             'paused' => $group->paused_at !== null,
+            'notify_interval_minutes' => $interval,
             'last_notified_at' => $group->last_notified_at?->toIso8601String(),
+            'next_push_at' => $nextPushAt?->toIso8601String(),
             'members' => $group->members->map(function ($m) {
                 $landing = $m->trackedLanding?->landing;
                 if ($landing === null) {

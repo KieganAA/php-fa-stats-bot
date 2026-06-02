@@ -18,11 +18,11 @@ defineProps({ modelValue: { type: String, default: 'today' } });
 defineEmits(['update:modelValue']);
 
 const periods = [
-    { value: 'today', label: 'Today' },
-    { value: 'yesterday', label: 'Yesterday' },
-    { value: '24h', label: '24h' },
-    { value: '7d', label: '7d' },
-    { value: 'week', label: 'Week' },
-    { value: 'month', label: 'Month' },
+    { value: 'today', label: 'Сегодня' },
+    { value: 'yesterday', label: 'Вчера' },
+    { value: '24h', label: '24ч' },
+    { value: '7d', label: '7д' },
+    { value: 'week', label: 'Неделя' },
+    { value: 'month', label: 'Месяц' },
 ];
 </script>

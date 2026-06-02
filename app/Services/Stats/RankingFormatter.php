@@ -8,7 +8,9 @@ use Carbon\CarbonInterface;
  * Compact top-N table for daily-overview commands (/geo, /buyers, /lps1, /lps2).
  *
  * Three metric columns fits a phone without wrapping; the default trio
- * (Q Visits, Leads, Real Approve) can be overridden per call via $metricNames.
+ * (Q Visits, Leads, Real Approve) can be overridden per call via $metricNames
+ * (e.g. the user's geo-context preset). `$labelOverrides` swaps the column
+ * caption without changing the value-formatting kind.
  */
 final class RankingFormatter
 {
@@ -16,9 +18,16 @@ final class RankingFormatter
      * @param  array{from: CarbonInterface, to: CarbonInterface, timezone: string, label: string}  $window
      * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
      * @param  list<string>|null  $metricNames
+     * @param  array<string, string>  $labelOverrides
      */
-    public function format(array $window, string $title, array $entries, string $kindHeader = 'item', ?array $metricNames = null): string
-    {
+    public function format(
+        array $window,
+        string $title,
+        array $entries,
+        string $kindHeader = 'item',
+        ?array $metricNames = null,
+        array $labelOverrides = [],
+    ): string {
         $header = $this->header($window, $title);
         if ($entries === []) {
             return $header."\n\n<i>Нет данных за окно.</i>";
@@ -29,6 +38,8 @@ final class RankingFormatter
             return $header."\n\n<i>Не выбраны метрики.</i>";
         }
 
+        $labelOf = fn (string $n): string => $labelOverrides[$n] ?? MetricDisplay::label($n);
+
         // Phone `<code>` wraps around ~40 chars. Budget per row:
         //   #     <label>          metric1   metric2   metric3
         //   3  +  18 (hard cap)  + 7       + 7       + 7    = ~42, just fits.
@@ -36,11 +47,11 @@ final class RankingFormatter
         $labelWidth = min($labelWidth, 18);
 
         $rankWidth = 4;
-        $colWidth = max(7, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $shown));
+        $colWidth = max(7, ...array_map(fn ($n) => mb_strlen($labelOf($n)) + 1, $shown));
 
         $head = mb_str_pad('#', $rankWidth).mb_str_pad($kindHeader, $labelWidth + 1);
         foreach ($shown as $name) {
-            $head .= mb_str_pad(MetricDisplay::label($name), $colWidth);
+            $head .= mb_str_pad($labelOf($name), $colWidth);
         }
         $lines = ["<code>{$this->escape(rtrim($head))}</code>"];
 

@@ -34,6 +34,7 @@ final class RankingReporter
     /**
      * @param  array{from: \DateTimeInterface, to: \DateTimeInterface, timezone: string, label: string}  $window
      * @param  list<string>|null  $metricNames  AIO names to project + show
+     * @param  array<string, string>  $labelOverrides  per-name display labels
      * @return string Telegram HTML
      */
     public function report(
@@ -42,7 +43,32 @@ final class RankingReporter
         int $topN = 15,
         string $sortMetric = 'Leads',
         ?array $metricNames = null,
+        array $labelOverrides = [],
     ): string {
+        $collected = $this->collectData($kind, $window, $topN, $sortMetric, $metricNames);
+
+        return $this->formatCollected($collected, $window, $metricNames, $labelOverrides);
+    }
+
+    /**
+     * Same query + ranking work as report(), but returns the structured rows
+     * instead of formatted HTML. Mini App table view uses this so it can do
+     * its own sorting / formatting client-side.
+     *
+     * Server-side sort + topN still apply (so the default ordering matches the
+     * bot's report). The client can re-sort the returned rows freely.
+     *
+     * @param  array{from: \DateTimeInterface, to: \DateTimeInterface, timezone: string, label: string}  $window
+     * @param  list<string>|null  $metricNames
+     * @return array{dim: array{filter_key: string, title: string, header: string}, entries: list<array{label: string, metrics: array<string, int|float|null>}>}
+     */
+    public function collectData(
+        string $kind,
+        array $window,
+        int $topN = 15,
+        string $sortMetric = 'Leads',
+        ?array $metricNames = null,
+    ): array {
         $dim = $this->dimensionConfig($kind);
 
         $pivot = $this->reports->rankByPrimitive(
@@ -63,7 +89,7 @@ final class RankingReporter
 
         // Pivot rows still need the sort metric (Leads by default) — even if
         // it's not in the user's display set, we project it for ordering and
-        // strip it before rendering.
+        // strip it before returning.
         $projectNames = $metricNames !== null
             ? array_values(array_unique([...$metricNames, $sortMetric]))
             : null;
@@ -87,7 +113,33 @@ final class RankingReporter
 
         $clean = array_map(fn ($e) => ['label' => $e['label'], 'metrics' => $e['metrics']], $entries);
 
-        return $this->formatter->format($window, $dim['title'], $clean, $dim['header'], $metricNames);
+        return ['dim' => $dim, 'entries' => $clean];
+    }
+
+    /**
+     * Format an already-collected dataset into Telegram HTML. Lets callers
+     * (e.g. the RankingsController) reuse the same in-memory pivot result for
+     * both the legacy `html` field and the structured `rows` field.
+     *
+     * @param  array{dim: array{title: string, header: string}, entries: list<array{label: string, metrics: array<string, int|float|null>}>}  $collected
+     * @param  array{from: \DateTimeInterface, to: \DateTimeInterface, timezone: string, label: string}  $window
+     * @param  list<string>|null  $metricNames
+     * @param  array<string, string>  $labelOverrides
+     */
+    public function formatCollected(
+        array $collected,
+        array $window,
+        ?array $metricNames = null,
+        array $labelOverrides = [],
+    ): string {
+        return $this->formatter->format(
+            $window,
+            $collected['dim']['title'],
+            $collected['entries'],
+            $collected['dim']['header'],
+            $metricNames,
+            $labelOverrides,
+        );
     }
 
     /** @param  list<string>  $uuids @return array<string, string> */

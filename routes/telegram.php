@@ -94,26 +94,15 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
 
 $command('start', function (Nutgram $bot) {
     $bot->sendMessage(
-        "👋 Привет! Я fa-stats-bot.\n\n".
-        "Откроешь <b>мини-апп</b> (/open) — там удобнее.\n\n".
-        "<b>Самое простое — просто пиши:</b>\n".
-        "<code>DK</code> — DK сегодня\n".
-        "<code>33169</code> — прокл #33169 сегодня\n".
-        "<code>BR 7d</code> — BR за 7 дней\n".
-        "<code>33169 за неделю</code>\n\n".
-        "<b>Топы:</b>\n".
-        "/geo · /buyers · /lps1 · /lps2 [период]\n\n".
-        "<b>MVT (разбивка по вариантам):</b>\n".
-        "/mvt 33169 [период]\n\n".
-        "<b>Compare двух (с Δ%):</b>\n".
-        "/compare 33169 205215\n".
-        "/compare DK BR за неделю\n\n".
-        "<b>3h-пуш с compare:</b>\n".
-        "/bind 33169 205215 [name]\n".
-        "/groups · /unbind &lt;name&gt;\n\n".
-        "<b>Свободно:</b>\n".
-        "/ai &lt;вопрос&gt;\n\n".
-        "/ping · /help",
+        "👋 Привет! Я fa-stats-bot — статка из AIO без захода на сайт.\n\n".
+        "<b>Самое простое</b> — просто напиши в чат, что хочешь:\n".
+        "• <code>DK</code> — Дания сегодня\n".
+        "• <code>33169</code> — прокл по human_id\n".
+        "• <code>сравни 33169 и 205215 за неделю</code>\n".
+        "• <code>че там по BR вчера</code>\n\n".
+        "Если бот не понимает или хочешь сразу нужный отчёт — есть точные команды (/help).\n\n".
+        "<b>📱 Мини-апп</b> — кнопками, без перепечатывания, с настройками. Гайд внутри (/guide).\n\n".
+        "<i>Краткая шпаргалка по командам — /help.</i>",
         parse_mode: 'HTML',
         reply_markup: H::openMiniAppKeyboard(),
     );
@@ -133,37 +122,188 @@ $command('ping', function (Nutgram $bot) {
     $bot->sendMessage('pong 🏓');
 })->description('Проверка связи');
 
+$command('extension', function (Nutgram $bot) {
+    $user = app(AppContext::class)->user();
+    if ($user === null) {
+        $bot->sendMessage('Не могу определить юзера.');
+
+        return;
+    }
+
+    $service = app(\App\Services\Auth\ExtensionTokenService::class);
+    $plain = $service->rotate($user);
+    $appUrl = rtrim((string) config('app.url', ''), '/');
+
+    // Send the ZIP as a Telegram document attachment so it bypasses any
+    // tunnel/proxy/interstitial between the bot and the user (especially
+    // ngrok-free which shows an HTML splash before binary downloads).
+    try {
+        $built = app(\App\Services\Support\ExtensionZipBuilder::class)->build();
+        $bot->sendDocument(
+            document: \SergiX44\Nutgram\Telegram\Types\Internal\InputFile::make($built['path'], $built['filename']),
+            caption: "📦 Архив расширения bot-stats (".round($built['size'] / 1024)." KB)",
+        );
+        @unlink($built['path']);
+    } catch (Throwable $e) {
+        $bot->sendMessage(
+            "⚠️ Не удалось собрать архив расширения: ".htmlspecialchars($e->getMessage()).
+            ($appUrl !== '' ? "\n\nМожно скачать вручную: <code>{$appUrl}/extension.zip</code>" : ''),
+            parse_mode: 'HTML',
+        );
+    }
+
+    $bot->sendMessage(
+        "🧩 <b>Установка Chrome-расширения</b>\n\n".
+        "Расширение помогает прямо со страниц AIO отмечать ленды и одним кликом ".
+        "отправлять их в бот как новые подписки (пуш каждые 1/3/6/12/24 часа).\n\n".
+
+        "━━━━━━━━━━━━━━━━━━\n\n".
+
+        "<b>Шаг 1 — распакуй архив</b>\n".
+        "Файл выше: <code>bot-stats-extension.zip</code>. Скачай (в Telegram у файла кнопка ⬇️), ".
+        "потом двойной клик → появится папка <code>bot-stats-extension/</code>. Запомни путь.\n\n".
+
+        "<b>Шаг 2 — открой страницу расширений</b>\n".
+        "В адресной строке Chrome: <code>chrome://extensions</code>\n\n".
+
+        "<b>Шаг 3 — включи «Режим разработчика»</b>\n".
+        "Тумблер <b>справа сверху</b>. После включения слева появятся 3 кнопки: ".
+        "«Загрузить распакованное», «Упаковать расширение», «Обновить».\n\n".
+
+        "<b>Шаг 4 — загрузи расширение</b>\n".
+        "Жми <b>«Загрузить распакованное» / «Load unpacked»</b> (первая кнопка слева). ".
+        "В диалоге выбери папку <code>bot-stats-extension/</code> из шага 1. ".
+        "В списке появится «bot-stats helper».\n\n".
+
+        "<b>Шаг 5 — закрепи иконку</b>\n".
+        "Справа от адресной строки иконка <b>🧩 пазла</b> → клик → у «bot-stats helper» жми <b>📌</b>. ".
+        "Теперь иконка расширения в тулбаре всегда видна.\n\n".
+
+        "<b>Шаг 6 — введи токен</b>\n".
+        "Клик по иконке расширения → ⚙️ <b>«Открыть настройки»</b>. Вставь:\n\n".
+        "<b>API URL:</b>\n<code>".htmlspecialchars($appUrl ?: '(не настроен)')."</code>\n\n".
+        "<b>Токен:</b>\n<code>".htmlspecialchars($plain).'</code>'."\n\n".
+        "Жми «Сохранить». Должно появиться <i>✓ Подключено как ...</i>\n\n".
+
+        "━━━━━━━━━━━━━━━━━━\n\n".
+
+        "<b>Как пользоваться</b>\n".
+        "• Открой <code>app.aio.tech</code> → справа снизу плавающая панель с найденными лендами\n".
+        "• Отмечай чекбоксами → жми <b>«→ N»</b> → они улетят в очередь\n".
+        "• Клик по иконке расширения → выбери частоту → <b>«Создать»</b>\n\n".
+
+        "<b>Бонусы</b>\n".
+        "• Выдели любой текст с id (например <code>33169, 205215</code>) → правый клик → <b>«Отправить выделенное в bot-stats»</b>\n".
+        "• Панель на странице AIO можно таскать за заголовок — позиция запомнится\n".
+        "• Потерял токен? Запусти /extension_token — выдам новый\n".
+        "• Совсем отозвать: /extension_revoke",
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+    );
+})->description('Установить Chrome-расширение');
+
+$command('extension_token', function (Nutgram $bot) {
+    $user = app(AppContext::class)->user();
+    if ($user === null) {
+        $bot->sendMessage('Не могу определить юзера.');
+
+        return;
+    }
+
+    $service = app(\App\Services\Auth\ExtensionTokenService::class);
+    $plain = $service->rotate($user);
+    $appUrl = rtrim((string) config('app.url', ''), '/');
+
+    $bot->sendMessage(
+        "🔑 <b>Новый токен для расширения</b>\n\n".
+        "Скопируй и вставь в настройки расширения (значок ⚙️ в popup):\n\n".
+        "<b>API URL:</b>\n<code>".htmlspecialchars($appUrl ?: '(не настроен)')."</code>\n\n".
+        "<b>Токен:</b>\n<code>".htmlspecialchars($plain).'</code>'."\n\n".
+        "<i>Подробный гайд: /extension</i>",
+        parse_mode: 'HTML',
+    );
+})->description('Только токен (без гайда)');
+
+$command('extension_revoke', function (Nutgram $bot) {
+    $user = app(AppContext::class)->user();
+    if ($user === null) {
+        $bot->sendMessage('Не могу определить юзера.');
+
+        return;
+    }
+    app(\App\Services\Auth\ExtensionTokenService::class)->revoke($user);
+    $bot->sendMessage('🗑 Токен Chrome-расширения отозван. Расширение сразу перестанет работать. Новый — /extension_token.');
+})->description('Отозвать токен расширения');
+
+$command('guide', function (Nutgram $bot) {
+    // Deep-links straight to the in-app guide page so the user lands on the
+    // help tab without a tap. Vue router uses hash-history.
+    $keyboard = H::openMiniAppKeyboard('📖 Открыть гайд в мини-аппе', '#/help');
+    $bot->sendMessage(
+        "<b>📖 Гайд по мини-аппу</b>\n\n".
+        "Внутри есть подробное описание всех вкладок:\n\n".
+        "• <b>📊 Статы</b> — три режима: один примитив, compare двух+, MVT-разбивка ленда\n".
+        "• <b>🏆 Топы</b> — топ-15 стран/баеров/лендов за период\n".
+        "• <b>🔔 Подписки</b> — авто-пуш в чат каждые 1/3/6/12/24 часа\n".
+        "• <b>⚙️ Настройки</b> — пресеты метрик под каждый отчёт, переименование колонок, ".
+        "часовой пояс, ключ Anthropic\n".
+        "• <b>❓ Помощь</b> — полный гайд с примерами и инструкциями\n\n".
+        ($keyboard !== null
+            ? "Жми кнопку — откроется сразу на вкладке Помощь."
+            : "Mini App URL не настроен — задай APP_URL в .env."),
+        parse_mode: 'HTML',
+        reply_markup: $keyboard,
+    );
+})->description('Гайд по мини-аппу');
+
 $command('help', function (Nutgram $bot) {
     $bot->sendMessage(
-        "<b>Сырой ввод:</b>\n".
-        "<code>DK</code>, <code>33169</code>, <code>BR 7d</code> — \n".
-        "то же что /stats но без слэша\n\n".
-        "<b>Статы:</b>\n".
-        "/stats &lt;примитив&gt; [период]\n".
-        "/compare &lt;a&gt; &lt;b&gt; [...] [период]\n\n".
-        "<b>Топы (overview):</b>\n".
-        "/geo [период] — все страны\n".
+        "<b>Как пользоваться</b>\n\n".
+
+        "<b>1. Пиши в чат свободно</b> — бот разбирает естественный язык:\n".
+        "• <code>DK</code> или <code>как DK</code> — Дания сегодня\n".
+        "• <code>33169 за неделю</code> — прокл за 7 дней\n".
+        "• <code>сравни DK и BR</code> — Δ% между странами\n".
+        "• <code>что там по 205228 вчера</code> — конкретный ленд\n".
+        "Под капотом — Claude, со встроенными инструментами stats/compare. ".
+        "Если хочется быстрее (без AI-задержки) — есть команды ниже.\n\n".
+
+        "<b>2. Команды (без AI, мгновенно):</b>\n".
+        "/stats &lt;примитив&gt; [период] — одиночные цифры\n".
+        "/compare &lt;a&gt; &lt;b&gt; [...] [период] — сайд-бай-сайд\n".
+        "/geo [период] — топ-15 стран\n".
         "/buyers [период] — топ баеров\n".
-        "/lps1 / /lps2 — топ лендов по позиции\n\n".
-        "<b>MVT-разбивка:</b>\n".
-        "/mvt &lt;id&gt; [период]\n\n".
-        "<b>Группы (3h-пуш):</b>\n".
-        "/bind &lt;id1&gt; &lt;id2&gt; [name]\n".
-        "/groups · /unbind &lt;name&gt;\n\n".
-        "Примитив — что угодно из:\n".
-        "• Код страны (DK, BR, IT, US…)\n".
-        "• human_id лендинга (33169, 205228…)\n".
+        "/lps1 / /lps2 [период] — топ лендов по позиции\n".
+        "/mvt &lt;id&gt; [период] — MVT-разбивка ленда\n\n".
+
+        "<b>3. Группы (автопуш каждые 3ч):</b>\n".
+        "/bind &lt;id1&gt; &lt;id2&gt; [name] — забиндить compare-группу\n".
+        "/bind &lt;id&gt; [name] — забиндить MVT-пуш одного ленда\n".
+        "/groups — мои группы\n".
+        "/unbind &lt;name&gt; — снять\n\n".
+
+        "<b>Примитив</b> — что-нибудь из:\n".
+        "• Код страны: <code>DK</code>, <code>BR</code>, <code>IT</code>, <code>US</code>…\n".
+        "• human_id лендинга: <code>33169</code>, <code>205228</code>…\n".
         "• UUID лендинга\n\n".
-        "Скоро добавлю: кампании, баеров, источники.\n\n".
-        "Период (любой из):\n".
-        "• today / сегодня (по умолчанию)\n".
-        "• yesterday / вчера / позавчера\n".
-        "• 7d, 24h, 2w, 1m\n".
-        "• неделя / за неделю / прошлая неделя\n".
-        "• месяц / за месяц / прошлый месяц\n".
-        "• 3 дня, 5 часов\n\n".
-        "<b>AI:</b> /ai &lt;вопрос&gt;\n".
-        "<b>Мини-апп:</b> /open",
+
+        "<b>Период</b> (любой из, по умолчанию today):\n".
+        "• <code>today</code> / <code>сегодня</code>\n".
+        "• <code>yesterday</code> / <code>вчера</code> / <code>позавчера</code>\n".
+        "• <code>7d</code>, <code>24h</code>, <code>2w</code>, <code>1m</code>\n".
+        "• <code>неделя</code> / <code>прошлая неделя</code>\n".
+        "• <code>месяц</code> / <code>прошлый месяц</code>\n".
+        "• <code>3 дня</code>, <code>5 часов</code>\n\n".
+
+        "<b>Метрики и пресеты</b> (тонко в мини-аппе):\n".
+        "• Свой набор колонок под каждый контекст (stats, geo, mvt, …)\n".
+        "• Любую AIO-метрику можно добавить (их ~80)\n".
+        "• Переименовать колонку — пример: <i>Q Visits</i> → <i>Quals</i>\n".
+        "• Часовой пояс, дефолтный период, отображение лендингов\n\n".
+
+        "📖 /guide — подробный гайд по мини-аппу (для новых)\n".
+        "📱 /open — открыть мини-апп\n".
+        "🏓 /ping — проверка связи",
         parse_mode: 'HTML',
     );
 })->description('Справка');
@@ -243,9 +383,10 @@ $command('compare', function (Nutgram $bot) {
     H::withPlaceholder($bot, function () use ($tokens, $period): string {
         $user = app(\App\Services\Auth\AppContext::class)->user();
         $window = app(PeriodParser::class)->parse($period, $user?->timezone);
-        $names = $user?->metricPreferences();
+        $names = $user?->metricNamesFor(\App\Services\Stats\MetricColumnResolver::COMPARE);
+        $labels = $user?->metricLabelOverrides() ?? [];
 
-        return app(ComparisonReporter::class)->report($tokens, $window, $names);
+        return app(ComparisonReporter::class)->report($tokens, $window, $names, $labels);
     });
 })->description('Сравнить N лендов / стран');
 
@@ -262,32 +403,23 @@ $command('ai', function (Nutgram $bot) {
     H::runAi($bot, $question);
 })->description('Свободный запрос (AI)');
 
-// Raw-input shortcut: bare "33169" / "DK" / "33169 7d" without the /stats
-// prefix routes straight into the stats pipeline. The regex deliberately
-// only matches things that LOOK like our primitives — country codes, numeric
-// human_ids, or UUIDs — followed by an optional period blob. Anything else
-// falls through to the fallback handler.
-$bot->onText('([A-Za-z]{2}|\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\s+(.+))?', function (Nutgram $bot, ?string $token, ?string $rest) {
-    if ($token === null) {
+// Anything that isn't a registered /command goes to AI. The AI handler has
+// stats/compare tools that handle "DK", "33169 за неделю", "сравни 33169 и
+// 205215" etc — and is forgiving of natural language ("как там DK сегодня").
+// Slash commands above are still fast paths for power users; bare text is
+// the friendly default.
+$bot->fallback(function (Nutgram $bot) {
+    $text = trim((string) ($bot->message()?->text ?? ''));
+    if ($text === '') {
         return;
     }
-    $args = [$token];
-    if ($rest !== null && $rest !== '') {
-        foreach (preg_split('/\s+/', trim($rest)) ?: [] as $w) {
-            if ($w !== '') {
-                $args[] = $w;
-            }
-        }
+    // Defensive: a leading "/" without a registered command means the user
+    // mis-typed a command — don't shovel that into the AI, just nudge.
+    if (str_starts_with($text, '/')) {
+        $bot->sendMessage('Неизвестная команда. /help — список.');
+
+        return;
     }
 
-    // Soft-fail: if the resolver can't understand it, drop through to fallback
-    // by silently returning — fallback then sends "Не понял" so we don't get
-    // double messages.
-    if (! H::runStats($bot, $args)) {
-        $bot->sendMessage('Не понял. /help — список команд.');
-    }
-});
-
-$bot->fallback(function (Nutgram $bot) {
-    $bot->sendMessage('Не понял. /help — список команд.');
+    H::runAi($bot, $text);
 });

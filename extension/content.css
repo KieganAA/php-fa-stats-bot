@@ -1,0 +1,302 @@
+/* Floating panel injected by content.js. All classes prefixed with `bs-`
+   to avoid colliding with the host page. */
+
+#bot-stats-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 260px;
+    max-height: 70vh;
+    background: #1f2937;
+    color: #f3f4f6;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    z-index: 2147483647;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+}
+
+#bot-stats-panel.bs-collapsed .bs-body { display: none; }
+
+#bot-stats-panel .bs-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    background: #111827;
+    cursor: move;
+    font-weight: 600;
+}
+#bot-stats-panel .bs-count {
+    color: #9ca3af;
+    font-weight: 400;
+    margin-left: 4px;
+    font-size: 10px;
+}
+#bot-stats-panel .bs-actions button {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 13px;
+    line-height: 1;
+}
+#bot-stats-panel .bs-actions button:hover { color: #f3f4f6; }
+
+#bot-stats-panel .bs-body {
+    overflow-y: auto;
+    flex: 1;
+}
+
+#bot-stats-panel .bs-empty {
+    color: #9ca3af;
+    padding: 12px 10px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.5;
+}
+#bot-stats-panel .bs-empty small {
+    display: block;
+    margin-top: 6px;
+    font-size: 10px;
+    color: #6b7280;
+}
+
+/* Sectioned content (picked list / create form / append form). */
+#bot-stats-panel .bs-section {
+    padding: 6px 8px;
+    border-top: 1px solid #374151;
+}
+#bot-stats-panel .bs-section:first-child {
+    border-top: none;
+}
+#bot-stats-panel .bs-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #9ca3af;
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+}
+#bot-stats-panel .bs-clear {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0;
+    font-size: 10px;
+    text-decoration: underline;
+    text-transform: none;
+    letter-spacing: normal;
+}
+#bot-stats-panel .bs-clear:hover { color: #f3f4f6; }
+
+/* "Подборка" chips. */
+#bot-stats-panel .bs-picked-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 140px;
+    overflow-y: auto;
+}
+#bot-stats-panel .bs-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+#bot-stats-panel .bs-chip:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+#bot-stats-panel .bs-chip .bs-label {
+    font-family: ui-monospace, Menlo, monospace;
+    flex-shrink: 0;
+    font-size: 11px;
+}
+#bot-stats-panel .bs-chip .bs-hint {
+    color: #9ca3af;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+}
+#bot-stats-panel .bs-drop {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+#bot-stats-panel .bs-drop:hover { color: #ef4444; }
+
+/* Form inputs in the create / append sections. */
+#bot-stats-panel .bs-input {
+    width: 100%;
+    padding: 5px 7px;
+    border: 1px solid #374151;
+    background: #111827;
+    color: #f3f4f6;
+    border-radius: 4px;
+    font-size: 11px;
+    box-sizing: border-box;
+    font-family: inherit;
+    margin-bottom: 4px;
+    user-select: text;
+}
+#bot-stats-panel .bs-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+#bot-stats-panel .bs-input-inline {
+    flex: 1;
+    margin-bottom: 0;
+}
+#bot-stats-panel .bs-form-row {
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+}
+
+/* Buttons. */
+#bot-stats-panel .bs-primary,
+#bot-stats-panel .bs-secondary {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+    font-family: inherit;
+}
+#bot-stats-panel .bs-primary {
+    background: #3b82f6;
+    color: #fff;
+}
+#bot-stats-panel .bs-primary:hover:not(:disabled) {
+    background: #2563eb;
+}
+#bot-stats-panel .bs-secondary {
+    background: #374151;
+    color: #f3f4f6;
+}
+#bot-stats-panel .bs-secondary:hover:not(:disabled) {
+    background: #4b5563;
+}
+#bot-stats-panel .bs-primary:disabled,
+#bot-stats-panel .bs-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Inline status / error message slot. */
+#bot-stats-panel .bs-foot-msg {
+    padding: 4px 10px 8px;
+    font-size: 10px;
+    color: #9ca3af;
+    text-align: center;
+    min-height: 12px;
+    line-height: 1.4;
+}
+#bot-stats-panel .bs-foot-msg.bs-err,
+#bot-stats-panel .bs-empty .bs-err {
+    color: #ef4444;
+}
+#bot-stats-panel .bs-empty .bs-err {
+    display: block;
+    margin-top: 6px;
+}
+
+/* Toast — separate from the panel, lives on document.body. */
+.bs-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translateX(-50%);
+    background: #111;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    z-index: 2147483647;
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    max-width: 70vw;
+    text-align: center;
+}
+
+/* Tiny "＋" pill prepended inside aio-data-lander-relation's flex row.
+   Designed to sit flush at the row's left edge without expanding the cell.
+   Position relative so the "subscribed" amber dot pseudo-element can anchor. */
+.bs-row-btn {
+    position: relative;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin-right: 6px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    vertical-align: middle;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.bs-row-btn:hover {
+    background: rgba(59, 130, 246, 0.3);
+    transform: scale(1.08);
+}
+.bs-row-btn.bs-row-btn-on {
+    background: #10b981;
+    color: #fff;
+    box-shadow: 0 0 0 1px #10b981;
+}
+
+/* Amber dot at the top-right corner = this landing is already a member of
+   one or more of the user's existing subscriptions. Hover tooltip lists
+   which ones (set as `title` from JS). */
+.bs-row-btn.bs-row-btn-subscribed::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 7px;
+    height: 7px;
+    background: #f59e0b;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1.5px #fff;
+    pointer-events: none;
+}
+
+/* Marker class for the menu item we inject into <ati-menu>. The base
+   styling is provided by AIO's own .menu-item / .menu-item__label rules —
+   we just nudge the colour a hair so the user can tell it's our entry. */
+.menu-item.bs-menu-entry {
+    background: rgba(59, 130, 246, 0.06);
+}
+.menu-item.bs-menu-entry:hover {
+    background: rgba(59, 130, 246, 0.18);
+}

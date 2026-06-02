@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>bot-stats</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <main id="root">
+        <header class="header">
+            <strong>bot-stats</strong>
+            <button id="open-options" class="link" title="Настройки">⚙️</button>
+        </header>
+
+        <section id="not-configured" class="state hidden">
+            <p>Расширение не настроено.</p>
+            <p class="hint">Запусти в боте <code>/extension_token</code>, скопируй токен сюда.</p>
+            <button id="open-options-2" class="primary">Открыть настройки</button>
+        </section>
+
+        <section id="auth-error" class="state hidden">
+            <p>❌ Токен не работает или истёк.</p>
+            <p class="hint">Сгенерируй заново через <code>/extension_token</code>.</p>
+            <button id="open-options-3" class="primary">Открыть настройки</button>
+        </section>
+
+        <section id="main" class="state hidden">
+            <div class="who" id="who"></div>
+
+            <h2>Создать подписку</h2>
+
+            <div class="picked" id="picked"></div>
+
+            <div class="row">
+                <input id="search" placeholder="33169, NO, название…" autocomplete="off" spellcheck="false">
+            </div>
+
+            <ul class="suggestions hidden" id="suggestions"></ul>
+
+            <label class="row">
+                <span>Частота</span>
+                <select id="interval">
+                    <option value="60">1 час</option>
+                    <option value="180" selected>3 часа</option>
+                    <option value="360">6 часов</option>
+                    <option value="720">12 часов</option>
+                    <option value="1440">24 часа</option>
+                </select>
+            </label>
+
+            <input id="group-name" placeholder="Имя (необязательно)" autocomplete="off">
+
+            <button id="create" class="primary" disabled>Выбери хотя бы один ленд</button>
+
+            <div id="create-error" class="error hidden"></div>
+
+            <h2>Мои подписки <span id="groups-count" class="count"></span></h2>
+            <div id="groups" class="groups"></div>
+        </section>
+
+        <section id="loading" class="state">
+            <p>Загружаю…</p>
+        </section>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>

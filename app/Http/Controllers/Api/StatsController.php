@@ -6,7 +6,7 @@ use App\Services\Aio\Pivot\LandingReports;
 use App\Services\Aio\Pivot\TargetMetricSet;
 use App\Services\Auth\AppContext;
 use App\Services\Stats\LandingFormatter;
-use App\Services\Stats\MetricDisplay;
+use App\Services\Stats\MetricColumnResolver;
 use App\Services\Stats\PeriodParser;
 use App\Services\Stats\PrimitiveResolver;
 use Illuminate\Http\JsonResponse;
@@ -47,7 +47,8 @@ class StatsController
                 timezone: $window['timezone'],
             );
 
-            $names = $ctx->userOrFail()->metricPreferences();
+            $names = $user->metricNamesFor(MetricColumnResolver::STATS);
+            $columns = $user->metricColumnsFor(MetricColumnResolver::STATS);
             $raw = $pivot->rows[0]['metrics'] ?? [];
             $metrics = $targets->project($raw, $names);
 
@@ -63,7 +64,7 @@ class StatsController
                     'label' => $window['label'],
                     'timezone' => $window['timezone'],
                 ],
-                'metric_columns' => MetricDisplay::describe($names),
+                'metric_columns' => $columns,
                 'metrics' => $metrics,
             ]);
         } catch (Throwable $e) {

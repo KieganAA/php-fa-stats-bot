@@ -27,9 +27,10 @@
 
 <script setup>
 const tabs = [
-    { path: '/stats', label: '📊 Stats' },
-    { path: '/top', label: '🏆 Top' },
-    { path: '/groups', label: '🔔 Groups' },
-    { path: '/settings', label: '⚙️' },
+    { path: '/stats', label: '📊 Статы' },
+    { path: '/top', label: '🏆 Топы' },
+    { path: '/subs', label: '🔔 Подписки' },
+    { path: '/settings', label: '⚙️ Настройки' },
+    { path: '/help', label: '❓ Помощь' },
 ];
 </script>

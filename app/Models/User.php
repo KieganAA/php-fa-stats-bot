@@ -26,6 +26,9 @@ use Illuminate\Notifications\Notifiable;
     'last_seen_at',
     'anthropic_api_key',
     'anthropic_model',
+    'extension_token_hash',
+    'extension_token_created_at',
+    'extension_token_used_at',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -47,6 +50,8 @@ class User extends Authenticatable
             // Laravel's `encrypted` cast transparently encrypts on save and
             // decrypts on read using APP_KEY. The DB stores opaque ciphertext.
             'anthropic_api_key' => 'encrypted',
+            'extension_token_created_at' => 'datetime',
+            'extension_token_used_at' => 'datetime',
         ];
     }
 
@@ -67,31 +72,60 @@ class User extends Authenticatable
     }
 
     /**
-     * The AIO metric names this user wants in their reports. Stored at
-     * `settings.metrics` as a flat list; null/missing falls back to the
-     * config default. Always returns a non-empty list (defaults plug in).
+     * The AIO metric names this user wants in the "stats" context (single
+     * primitive view, /stats, /compare, tracking push). Kept around for
+     * callers that haven't been threaded with an explicit context yet —
+     * everything else should go through MetricColumnResolver directly.
      *
      * @return list<string>
      */
     public function metricPreferences(): array
     {
-        $settings = is_array($this->settings) ? $this->settings : [];
-        $picked = $settings['metrics'] ?? null;
-        if (is_array($picked) && $picked !== []) {
-            return array_values(array_filter(
-                array_map(fn ($n) => is_string($n) ? trim($n) : '', $picked),
-                fn ($n) => $n !== '',
-            ));
-        }
-
-        return (array) config('aio.default_metrics', []);
+        return app(\App\Services\Stats\MetricColumnResolver::class)
+            ->namesFor($this, \App\Services\Stats\MetricColumnResolver::STATS);
     }
 
     public function hasCustomMetricPreferences(): bool
     {
         $settings = is_array($this->settings) ? $this->settings : [];
 
-        return isset($settings['metrics']) && is_array($settings['metrics']);
+        // Either legacy single-key OR explicit stats preset counts as customized.
+        if (isset($settings['metrics']) && is_array($settings['metrics'])) {
+            return true;
+        }
+        $presets = $settings['metric_presets'] ?? null;
+        if (is_array($presets) && isset($presets['stats']) && is_array($presets['stats'])) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function metricNamesFor(string $context): array
+    {
+        return app(\App\Services\Stats\MetricColumnResolver::class)->namesFor($this, $context);
+    }
+
+    /**
+     * @return list<array{name: string, label: string, kind: string}>
+     */
+    public function metricColumnsFor(string $context): array
+    {
+        return app(\App\Services\Stats\MetricColumnResolver::class)->columnsFor($this, $context);
+    }
+
+    /**
+     * Per-name label overrides — same across every context the metric appears
+     * in (a metric is the same thing regardless of report).
+     *
+     * @return array<string, string>
+     */
+    public function metricLabelOverrides(): array
+    {
+        return app(\App\Services\Stats\MetricColumnResolver::class)->labelsFor($this);
     }
 
     /**

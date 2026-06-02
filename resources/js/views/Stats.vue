@@ -27,7 +27,7 @@
                 type="submit"
                 class="px-4 py-2 rounded-lg text-sm font-medium w-full bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
                 :disabled="!primitiveSingle.trim() || loading"
-            >{{ loading ? 'Loading…' : 'Show' }}</button>
+            >{{ loading ? 'Загружаю…' : 'Показать' }}</button>
         </form>
 
         <!-- Compare — 2+ primitives -->
@@ -43,7 +43,7 @@
                 type="submit"
                 class="px-4 py-2 rounded-lg text-sm font-medium w-full bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
                 :disabled="compareTokens.length < 2 || loading"
-            >{{ loading ? 'Loading…' : `Compare (${compareTokens.length})` }}</button>
+            >{{ loading ? 'Загружаю…' : `Сравнить (${compareTokens.length})` }}</button>
         </form>
 
         <!-- MVT — single landing variant breakdown -->
@@ -59,7 +59,7 @@
                 type="submit"
                 class="px-4 py-2 rounded-lg text-sm font-medium w-full bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
                 :disabled="!primitiveMvt.trim() || loading"
-            >{{ loading ? 'Loading…' : 'MVT breakdown' }}</button>
+            >{{ loading ? 'Загружаю…' : 'MVT-разбивка' }}</button>
         </form>
 
         <div v-if="error" class="text-sm text-red-500">{{ error }}</div>
@@ -98,8 +98,8 @@ import PeriodPicker from '../components/PeriodPicker.vue';
 import TelegramHtml from '../components/TelegramHtml.vue';
 
 const modes = [
-    { value: 'single', label: 'One' },
-    { value: 'compare', label: 'Compare' },
+    { value: 'single', label: 'Один' },
+    { value: 'compare', label: 'Сравнить' },
     { value: 'mvt', label: 'MVT' },
 ];
 

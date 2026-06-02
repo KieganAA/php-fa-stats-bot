@@ -99,6 +99,40 @@ class CompareGroupBinderTest extends TestCase
         $this->assertSame(2, UserCompareGroup::query()->count());
     }
 
+    public function test_notify_interval_persists_when_passed(): void
+    {
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+
+        $group = app(CompareGroupBinder::class)->bind($user, [$a], notifyIntervalMinutes: 720);
+
+        $this->assertSame(720, $group->notify_interval_minutes);
+    }
+
+    public function test_notify_interval_clamped_to_range(): void
+    {
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+
+        // Below the floor — gets clamped up.
+        $low = app(CompareGroupBinder::class)->bind($user, [$a], name: 'low', notifyIntervalMinutes: 5);
+        $this->assertSame(UserCompareGroup::INTERVAL_MIN, $low->notify_interval_minutes);
+
+        // Above the ceiling — clamped down.
+        $high = app(CompareGroupBinder::class)->bind($user, [$a], name: 'high', notifyIntervalMinutes: 999999);
+        $this->assertSame(UserCompareGroup::INTERVAL_MAX, $high->notify_interval_minutes);
+    }
+
+    public function test_notify_interval_defaults_to_180_when_omitted(): void
+    {
+        $user = User::factory()->telegram('1')->create();
+        $a = $this->seedLanding(1);
+
+        $group = app(CompareGroupBinder::class)->bind($user, [$a]);
+
+        $this->assertSame(180, $group->notify_interval_minutes);
+    }
+
     public function test_rebind_resumes_paused_tracked_landing(): void
     {
         $user = User::factory()->telegram('1')->create();

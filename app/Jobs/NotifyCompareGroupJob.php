@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\User;
 use App\Models\UserCompareGroup;
 use App\Services\Stats\ComparisonReporter;
+use App\Services\Stats\MetricColumnResolver;
 use App\Services\Stats\MvtFormatter;
 use App\Services\Stats\MvtReporter;
 use App\Services\Stats\PeriodParser;
@@ -67,10 +68,12 @@ class NotifyCompareGroupJob implements ShouldQueue
         $html = null;
 
         try {
-            $names = $user->metricPreferences();
+            $compareNames = $user->metricNamesFor(MetricColumnResolver::TRACKING);
+            $mvtNames = $user->metricNamesFor(MetricColumnResolver::MVT);
+            $labels = $user->metricLabelOverrides();
             $html = match ($group->mode ?? UserCompareGroup::MODE_COMPARE) {
-                UserCompareGroup::MODE_MVT => $this->renderMvt($group, $window, $mvt, $mvtFormatter),
-                default => $this->renderCompare($group, $window, $compare, $names),
+                UserCompareGroup::MODE_MVT => $this->renderMvt($group, $window, $mvt, $mvtFormatter, $mvtNames, $labels),
+                default => $this->renderCompare($group, $window, $compare, $compareNames, $labels),
             };
         } catch (Throwable $e) {
             Log::warning('tracking-group notify failed', [
@@ -98,8 +101,11 @@ class NotifyCompareGroupJob implements ShouldQueue
         $group->save();
     }
 
-    /** @param  list<string>|null  $metricNames */
-    private function renderCompare(UserCompareGroup $group, array $window, ComparisonReporter $compare, ?array $metricNames): ?string
+    /**
+     * @param  list<string>|null  $metricNames
+     * @param  array<string, string>  $labelOverrides
+     */
+    private function renderCompare(UserCompareGroup $group, array $window, ComparisonReporter $compare, ?array $metricNames, array $labelOverrides): ?string
     {
         $tokens = [];
         foreach ($group->members as $m) {
@@ -113,10 +119,14 @@ class NotifyCompareGroupJob implements ShouldQueue
             return null; // compare requires ≥2
         }
 
-        return $compare->report($tokens, $window, $metricNames);
+        return $compare->report($tokens, $window, $metricNames, $labelOverrides);
     }
 
-    private function renderMvt(UserCompareGroup $group, array $window, MvtReporter $mvt, MvtFormatter $fmt): ?string
+    /**
+     * @param  list<string>|null  $metricNames
+     * @param  array<string, string>  $labelOverrides
+     */
+    private function renderMvt(UserCompareGroup $group, array $window, MvtReporter $mvt, MvtFormatter $fmt, ?array $metricNames, array $labelOverrides): ?string
     {
         $member = $group->members->first();
         $landing = $member?->trackedLanding?->landing;
@@ -127,7 +137,7 @@ class NotifyCompareGroupJob implements ShouldQueue
         $position = (int) ($member->trackedLanding->position ?? 1);
         $report = $mvt->report($landing, $window, $position);
 
-        return $fmt->format($report);
+        return $fmt->format($report, $metricNames, $labelOverrides);
     }
 
     private function escape(string $s): string

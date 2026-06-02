@@ -38,11 +38,11 @@ class UserFactory extends Factory
     }
 
     /** A Telegram-identified user (no email/password). */
-    public function telegram(?string $tgId = null): static
+    public function telegram(?string $tgId = null, ?string $username = null): static
     {
         return $this->state(fn (array $attributes) => [
             'telegram_user_id' => $tgId ?? (string) fake()->unique()->numberBetween(10_000_000, 999_999_999),
-            'telegram_username' => strtolower(fake()->userName()),
+            'telegram_username' => $username ?? strtolower(fake()->userName()),
             'telegram_first_name' => fake()->firstName(),
             'name' => null,
             'email' => null,

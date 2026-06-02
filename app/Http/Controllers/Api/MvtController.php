@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Aio\Landing;
+use App\Services\Stats\MetricColumnResolver;
 use App\Services\Stats\MvtFormatter;
 use App\Services\Stats\MvtReporter;
 use App\Services\Stats\PeriodParser;
@@ -41,9 +42,13 @@ class MvtController
         }
 
         try {
-            $window = $periods->parse($data['period'] ?? null, $ctx->userOrFail()->timezone);
+            $user = $ctx->userOrFail();
+            $window = $periods->parse($data['period'] ?? null, $user->timezone);
             $report = $reporter->report($landing, $window);
-            $html = $formatter->format($report);
+
+            $names = $user->metricNamesFor(MetricColumnResolver::MVT);
+            $labels = $user->metricLabelOverrides();
+            $html = $formatter->format($report, $names, $labels);
 
             return response()->json([
                 'landing' => [
@@ -64,6 +69,7 @@ class MvtController
                     'variants' => $r['variants'],
                     'metrics' => $r['metrics'],
                 ], $report['rows']),
+                'metric_columns' => MetricColumnResolver::columnsFromNames($names, $labels),
                 'html' => $html,
             ]);
         } catch (Throwable $e) {

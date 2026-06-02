@@ -7,6 +7,7 @@ use App\Models\LandingSnapshot;
 use App\Models\TrackedLanding;
 use App\Models\UserCompareGroup;
 use App\Services\Tracking\LandingSnapshotter;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -78,17 +79,28 @@ class SnapshotCommand extends Command
 
     private function fanOutCompareGroups(): void
     {
-        // All active groups with at least one member. The job itself
-        // branches on group.mode (compare / mvt) — see NotifyCompareGroupJob.
+        // All active groups with at least one member. The cron now ticks
+        // hourly; we filter to groups whose `last_notified_at + interval` is
+        // due. This lets the same scheduler support 1h, 3h, 6h, 12h, 24h…
+        // intervals without per-interval crons.
         $groups = UserCompareGroup::query()
             ->whereNull('paused_at')
             ->has('members', '>=', 1)
             ->get();
 
+        $now = CarbonImmutable::now();
+        $dispatched = 0;
+        $skipped = 0;
         foreach ($groups as $g) {
+            if (! $g->isDueForPush($now)) {
+                $skipped++;
+
+                continue;
+            }
             NotifyCompareGroupJob::dispatch((int) $g->user_id, (int) $g->id);
+            $dispatched++;
         }
-        $this->info('Dispatched tracking-group jobs: '.$groups->count());
+        $this->info("Dispatched tracking-group jobs: {$dispatched} (skipped {$skipped} not due yet)");
     }
 
     /** @return list<LandingSnapshot> */

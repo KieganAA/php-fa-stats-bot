@@ -12,7 +12,8 @@ use Carbon\CarbonInterface;
  * N≥3 we drop the delta column.
  *
  * Metric set comes from MetricDisplay::defaultNames() unless the caller
- * passes a per-user list.
+ * passes a per-user list. Per-name label overrides plug in through the
+ * `$labelOverrides` map — kind still derives from MetricDisplay.
  */
 final class ComparisonFormatter
 {
@@ -20,8 +21,9 @@ final class ComparisonFormatter
      * @param  array{from: CarbonInterface, to: CarbonInterface, timezone: string, label: string}  $period
      * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
      * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
+     * @param  array<string, string>  $labelOverrides
      */
-    public function format(array $period, array $entries, ?array $metricNames = null): string
+    public function format(array $period, array $entries, ?array $metricNames = null, array $labelOverrides = []): string
     {
         if (count($entries) < 2) {
             return $this->header($period)."\n\n<i>Compare нуждается минимум в 2 примитивах.</i>";
@@ -29,7 +31,7 @@ final class ComparisonFormatter
 
         $names = $metricNames ?? MetricDisplay::defaultNames();
         $header = $this->header($period);
-        $body = $this->table($entries, $names);
+        $body = $this->table($entries, $names, $labelOverrides);
 
         return $header."\n\n".$body;
     }
@@ -45,17 +47,19 @@ final class ComparisonFormatter
     /**
      * @param  list<array{label: string, metrics: array<string, int|float|null>}>  $entries
      * @param  list<string>  $names
+     * @param  array<string, string>  $labelOverrides
      */
-    private function table(array $entries, array $names): string
+    private function table(array $entries, array $names, array $labelOverrides): string
     {
         if ($names === []) {
             return '<i>Не выбраны метрики.</i>';
         }
+        $labelOf = fn (string $n): string => $labelOverrides[$n] ?? MetricDisplay::label($n);
 
         $withDelta = count($entries) === 2;
 
         $colWidth = min(20, max(11, ...array_map(fn ($e) => mb_strlen($e['label']) + 1, $entries)));
-        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen(MetricDisplay::label($n)) + 1, $names));
+        $labelWidth = max(10, ...array_map(fn ($n) => mb_strlen($labelOf($n)) + 1, $names));
         $deltaWidth = 9;
 
         $headerCols = mb_str_pad('', $labelWidth);
@@ -71,7 +75,7 @@ final class ComparisonFormatter
         $right = $withDelta ? $entries[1]['metrics'] : null;
 
         foreach ($names as $name) {
-            $row = mb_str_pad(MetricDisplay::label($name), $labelWidth);
+            $row = mb_str_pad($labelOf($name), $labelWidth);
             foreach ($entries as $e) {
                 $v = $e['metrics'][$name] ?? null;
                 $row .= mb_str_pad($this->truncate(MetricDisplay::format($name, $v), $colWidth - 1), $colWidth);

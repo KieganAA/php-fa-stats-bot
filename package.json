@@ -4,6 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
+        "build:reload": "vite build && docker compose restart app",
         "dev": "vite"
     },
     "dependencies": {

@@ -79,6 +79,8 @@ final class CampaignStructureFetcher
             }
 
             $landingUuids = [];
+            $activeItems = 0;
+            $inactiveItems = 0;
             foreach ($items as $item) {
                 if (! is_array($item)) {
                     continue;
@@ -91,12 +93,15 @@ final class CampaignStructureFetcher
                     continue;
                 }
                 if (($payload['isActive'] ?? false) !== true) {
+                    $inactiveItems++;
+
                     continue;
                 }
                 $landingUuid = $payload['content'] ?? null;
                 if (! is_string($landingUuid) || $landingUuid === '') {
                     continue;
                 }
+                $activeItems++;
                 $landingUuids[] = $landingUuid;
             }
 
@@ -111,6 +116,8 @@ final class CampaignStructureFetcher
                 stepUuid: $stepUuid,
                 position: $position,
                 landingUuids: array_values(array_unique($landingUuids)),
+                activeItems: $activeItems,
+                inactiveItems: $inactiveItems,
             );
         }
 

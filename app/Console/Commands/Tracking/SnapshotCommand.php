@@ -93,6 +93,7 @@ class SnapshotCommand extends Command
                     ->orWhereHas('campaignSubscription', fn ($s) => $s->whereNull('paused_at'));
             })
             ->has('members', '>=', 1)
+            ->with('user') // isDueForPush (daily mode) reads user->timezone
             ->get();
 
         $now = CarbonImmutable::now();

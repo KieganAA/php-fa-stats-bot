@@ -68,20 +68,50 @@
                     <span v-if="c.orphans > 0" class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600">⚠️ {{ c.orphans }} пропал</span>
                 </div>
 
-                <div class="flex items-center justify-between gap-2 mt-2">
-                    <label class="text-xs text-[var(--tg-theme-hint-color,#6b7280)] flex items-center gap-1">
-                        ⏱ каждые
-                        <select
-                            :value="c.notify_interval_minutes"
-                            @change="setInterval(c, Number($event.target.value))"
-                            class="px-1.5 py-1 rounded text-xs bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
-                        >
-                            <option v-for="i in intervalOptions" :key="i.value" :value="i.value">{{ i.label }}</option>
-                        </select>
-                    </label>
-                    <span class="text-[10px] text-[var(--tg-theme-hint-color,#6b7280)] text-right">
-                        <span v-if="c.next_push_at && !c.paused">next ~ {{ formatRelative(c.next_push_at) }}</span>
-                    </span>
+                <!-- Schedule: every-N-hours slider OR daily-at time -->
+                <div class="mt-2 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex rounded-lg overflow-hidden border border-[var(--tg-theme-section-separator-color,#e5e7eb)] text-[11px]">
+                            <button
+                                class="px-2 py-1"
+                                :class="scheduleOf(c) === 'interval' ? 'bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-hint-color,#6b7280)]'"
+                                @click="setScheduleType(c, 'interval')"
+                            >⏱ интервал</button>
+                            <button
+                                class="px-2 py-1"
+                                :class="scheduleOf(c) === 'daily' ? 'bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-hint-color,#6b7280)]'"
+                                @click="setScheduleType(c, 'daily')"
+                            >📅 ежедневно</button>
+                        </div>
+                        <span class="text-[10px] text-[var(--tg-theme-hint-color,#6b7280)] text-right">
+                            <span v-if="c.next_push_at && !c.paused">next ~ {{ formatRelative(c.next_push_at) }}</span>
+                        </span>
+                    </div>
+
+                    <div v-if="scheduleOf(c) === 'interval'" class="flex items-center gap-2">
+                        <input
+                            type="range"
+                            min="0"
+                            :max="intervalOptions.length - 1"
+                            step="1"
+                            :value="intervalIndex(c)"
+                            @input="dragLabel[c.id] = intervalOptions[Number($event.target.value)].label"
+                            @change="setInterval(c, intervalOptions[Number($event.target.value)].value)"
+                            class="flex-1 accent-[var(--tg-theme-button-color,#3b82f6)]"
+                        />
+                        <span class="text-xs font-medium w-16 text-right">каждые {{ dragLabel[c.id] ?? intervalLabel(c.notify_interval_minutes) }}</span>
+                    </div>
+
+                    <div v-else class="flex items-center gap-2">
+                        <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">каждый день в</span>
+                        <input
+                            type="time"
+                            :value="c.daily_at || '10:00'"
+                            @change="setDailyAt(c, $event.target.value)"
+                            class="px-2 py-1 rounded text-xs bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
+                        />
+                        <span class="text-[10px] text-[var(--tg-theme-hint-color,#6b7280)]">(твоя TZ, ±15 мин)</span>
+                    </div>
                 </div>
 
                 <details v-if="c.children && c.children.length" class="mt-2">
@@ -126,6 +156,48 @@ const intervalOptions = [
     { value: 1440, label: '24ч' },
 ];
 
+// Live label while the user drags the slider (committed on release).
+const dragLabel = ref({});
+
+function scheduleOf(c) {
+    return c.schedule_type === 'daily' ? 'daily' : 'interval';
+}
+
+function intervalIndex(c) {
+    const i = intervalOptions.findIndex((o) => o.value === c.notify_interval_minutes);
+    return i === -1 ? 1 : i; // default to 3ч slot for non-preset values
+}
+
+function intervalLabel(minutes) {
+    return intervalOptions.find((o) => o.value === minutes)?.label
+        ?? (minutes % 60 === 0 ? `${minutes / 60}ч` : `${minutes}м`);
+}
+
+async function setScheduleType(c, type) {
+    if (scheduleOf(c) === type) return;
+    try {
+        const body = type === 'daily'
+            ? { schedule_type: 'daily', daily_at: c.daily_at || '10:00' }
+            : { schedule_type: 'interval' };
+        const r = await api.updateCampaign(c.id, body);
+        Object.assign(c, r.campaign);
+        hapticImpact('light');
+    } catch (e) {
+        showAlert(e.message);
+    }
+}
+
+async function setDailyAt(c, value) {
+    if (!value) return;
+    try {
+        const r = await api.updateCampaign(c.id, { schedule_type: 'daily', daily_at: value });
+        Object.assign(c, r.campaign);
+        hapticImpact('light');
+    } catch (e) {
+        showAlert(e.message);
+    }
+}
+
 async function load() {
     loading.value = true;
     try {
@@ -148,7 +220,8 @@ async function subscribe() {
         const c = r.campaign || {};
         token.value = '';
         subMsgKind.value = 'ok';
-        subMsg.value = `✅ ${c.label || t}: ${c.splits} сплит, ${c.mvts} MVT.`;
+        const steps = Array.isArray(r.steps) && r.steps.length ? ` · ${r.steps.join('; ')}` : '';
+        subMsg.value = `✅ ${c.label || t}: ${c.splits} сплит, ${c.mvts} MVT.${steps}`;
         hapticImpact('light');
         await load();
     } catch (e) {
@@ -176,6 +249,8 @@ async function setInterval(c, minutes) {
         hapticImpact('light');
     } catch (e) {
         showAlert(e.message);
+    } finally {
+        delete dragLabel.value[c.id]; // fall back to the committed value
     }
 }
 

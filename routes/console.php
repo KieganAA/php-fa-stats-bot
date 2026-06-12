@@ -25,10 +25,12 @@ Schedule::command('tracking:snapshot --no-notify')
     ->withoutOverlapping()
     ->runInBackground();
 
-// Notification fan-out runs hourly. The command itself filters groups by
-// their own notify_interval_minutes — see UserCompareGroup::isDueForPush.
-// This is the knob that lets users pick 1h / 3h / 6h / 12h / 24h cadences.
+// Notification fan-out. The command itself filters groups by their own
+// schedule (notify_interval_minutes OR daily_at) — see
+// UserCompareGroup::isDueForPush. Every 15 minutes so "daily at HH:MM"
+// schedules fire within a quarter hour of the chosen time; interval groups
+// are unaffected (they only fire when their own interval has elapsed).
 Schedule::command('tracking:snapshot --no-capture')
-    ->hourly()
+    ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->runInBackground();

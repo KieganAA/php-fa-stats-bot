@@ -102,6 +102,51 @@ final class CampaignManagementTest extends TestCase
             ->assertJsonPath('campaign.orphans', 1);
     }
 
+    public function test_update_daily_schedule_propagates_to_children(): void
+    {
+        [$user, $headers] = $this->authedUser();
+        $sub = $this->makeSubscription($user, ['step-1' => ['lp-a', 'lp-b']]);
+
+        $this->patchJson("/api/ext/campaigns/{$sub->id}", [
+            'schedule_type' => 'daily',
+            'daily_at' => '9:30',
+        ], $headers)
+            ->assertStatus(200)
+            ->assertJsonPath('campaign.schedule_type', 'daily')
+            ->assertJsonPath('campaign.daily_at', '09:30'); // normalised
+
+        $child = UserCompareGroup::query()->where('campaign_subscription_id', $sub->id)->firstOrFail();
+        $this->assertSame('daily', $child->schedule_type);
+        $this->assertSame('09:30', $child->daily_at);
+    }
+
+    public function test_daily_schedule_due_logic(): void
+    {
+        [$user] = $this->authedUser();
+        $user->timezone = 'Europe/Moscow'; // UTC+3
+        $user->save();
+        $sub = $this->makeSubscription($user, ['step-1' => ['lp-a', 'lp-b']]);
+        $child = UserCompareGroup::query()->where('campaign_subscription_id', $sub->id)->firstOrFail();
+        $child->schedule_type = 'daily';
+        $child->daily_at = '19:00'; // 19:00 MSK == 16:00 UTC
+        $child->last_notified_at = null;
+        $child->save();
+        $child = $child->fresh()->load('user');
+
+        // Before today's slot (15:00 UTC = 18:00 MSK) → not due.
+        $this->assertFalse($child->isDueForPush(\Carbon\CarbonImmutable::parse('2026-06-12 15:00:00', 'UTC')));
+        // After the slot (16:30 UTC = 19:30 MSK), never pushed → due.
+        $this->assertTrue($child->isDueForPush(\Carbon\CarbonImmutable::parse('2026-06-12 16:30:00', 'UTC')));
+
+        // Pushed at 16:31 UTC today → no longer due today…
+        $child->last_notified_at = \Carbon\CarbonImmutable::parse('2026-06-12 16:31:00', 'UTC');
+        $child->save();
+        $child = $child->fresh()->load('user');
+        $this->assertFalse($child->isDueForPush(\Carbon\CarbonImmutable::parse('2026-06-12 20:00:00', 'UTC')));
+        // …but due again after tomorrow's slot.
+        $this->assertTrue($child->isDueForPush(\Carbon\CarbonImmutable::parse('2026-06-13 16:30:00', 'UTC')));
+    }
+
     public function test_manual_push_dispatches_job_per_active_child(): void
     {
         \Illuminate\Support\Facades\Queue::fake();

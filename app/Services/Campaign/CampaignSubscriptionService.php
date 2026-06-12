@@ -63,8 +63,15 @@ final class CampaignSubscriptionService
             ->exists();
         if (! $exists && $analysis->isEmpty()) {
             $label = $structure->humanId !== null ? "#{$structure->humanId}" : 'эта кампания';
+            // Spell out what the analyzer saw per step — "6 rows in the AIO UI
+            // but 0 splits" is almost always disabled toggles or the same
+            // landing repeated for weight rotation, and that should be visible
+            // right in the refusal instead of needing a debugging session.
+            $detail = $structure->steps !== []
+                ? ' Структура: '.implode('; ', $structure->describeSteps()).'.'
+                : ' В шагах кампании нет активных лендов.';
             throw new EmptyCampaignException(
-                "В кампании {$label} нет ни сплитов, ни MVT — подписываться не на что.",
+                "В кампании {$label} нет ни сплитов, ни MVT — подписываться не на что.".$detail,
             );
         }
 
@@ -163,7 +170,7 @@ final class CampaignSubscriptionService
             }
         });
 
-        return new ResyncResult($created, $updated, $reactivated, $orphaned);
+        return new ResyncResult($created, $updated, $reactivated, $orphaned, $structure);
     }
 
     /**

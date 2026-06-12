@@ -61,9 +61,15 @@ function renderCampaigns() {
         if (c.paused) bits.push('<span class="badge warn">⏸ пауза</span>');
         if (c.orphans > 0) bits.push(`<span class="badge danger">⚠️ ${c.orphans} пропал</span>`);
 
-        const intervalSel = INTERVALS.map(([v, l]) =>
-            `<option value="${v}"${v === c.notify_interval_minutes ? ' selected' : ''}>${l}</option>`,
-        ).join('');
+        const isDaily = c.schedule_type === 'daily';
+        const intervalIdx = Math.max(0, INTERVALS.findIndex(([v]) => v === c.notify_interval_minutes));
+        const intervalLbl = INTERVALS.find(([v]) => v === c.notify_interval_minutes)?.[1]
+            ?? `${Math.round(c.notify_interval_minutes / 60)}ч`;
+        const scheduleCtl = isDaily
+            ? `<span class="sched-lbl">каждый день в</span>
+               <input type="time" class="daily-at" value="${escapeHtml(c.daily_at || '10:00')}">`
+            : `<input type="range" class="interval-rng" min="0" max="${INTERVALS.length - 1}" step="1" value="${intervalIdx}">
+               <span class="rng-lbl">каждые ${intervalLbl}</span>`;
 
         const children = (c.children || []).map((ch) => {
             const lands = (ch.landings || [])
@@ -94,9 +100,8 @@ function renderCampaigns() {
             </div>
             <div class="camp-badges">${bits.join('')}</div>
             <div class="camp-ctl">
-                <label class="interval">⏱ каждые
-                    <select class="interval-sel">${intervalSel}</select>
-                </label>
+                <button class="act sched-toggle" title="${isDaily ? 'Переключить на интервал' : 'Переключить на ежедневно'}">${isDaily ? '📅' : '⏱'}</button>
+                ${scheduleCtl}
                 <span class="meta">${[next, synced].filter(Boolean).join(' · ')}</span>
             </div>
             ${children ? `
@@ -115,8 +120,21 @@ function renderCampaigns() {
         node.querySelector('.pause')?.addEventListener('click', () => togglePause(c, node));
         node.querySelector('.resync')?.addEventListener('click', () => resync(c, node));
         node.querySelector('.del')?.addEventListener('click', () => remove(c));
-        node.querySelector('.interval-sel')?.addEventListener('change', (e) =>
-            setInterval(c, parseInt(e.target.value, 10), node));
+
+        // Schedule controls: ⏱/📅 toggles mode; slider commits on release
+        // (live label while dragging); time input commits on change.
+        node.querySelector('.sched-toggle')?.addEventListener('click', () => toggleSchedule(c, node));
+        const rng = node.querySelector('.interval-rng');
+        if (rng) {
+            rng.addEventListener('input', (e) => {
+                const lbl = node.querySelector('.rng-lbl');
+                if (lbl) lbl.textContent = `каждые ${INTERVALS[parseInt(e.target.value, 10)][1]}`;
+            });
+            rng.addEventListener('change', (e) =>
+                setInterval(c, INTERVALS[parseInt(e.target.value, 10)][0], node));
+        }
+        node.querySelector('.daily-at')?.addEventListener('change', (e) =>
+            setDailyAt(c, e.target.value, node));
     });
 }
 
@@ -139,6 +157,26 @@ async function togglePause(c, node) {
 async function setInterval(c, minutes, node) {
     await guard(node, async () => {
         const res = await api.updateCampaign(c.id, { notify_interval_minutes: minutes });
+        Object.assign(c, res.campaign);
+        renderCampaigns();
+    });
+}
+
+async function toggleSchedule(c, node) {
+    await guard(node, async () => {
+        const body = c.schedule_type === 'daily'
+            ? { schedule_type: 'interval' }
+            : { schedule_type: 'daily', daily_at: c.daily_at || '10:00' };
+        const res = await api.updateCampaign(c.id, body);
+        Object.assign(c, res.campaign);
+        renderCampaigns();
+    });
+}
+
+async function setDailyAt(c, value, node) {
+    if (!value) return;
+    await guard(node, async () => {
+        const res = await api.updateCampaign(c.id, { schedule_type: 'daily', daily_at: value });
         Object.assign(c, res.campaign);
         renderCampaigns();
     });

@@ -238,6 +238,8 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     max-width: 70vw;
     text-align: center;
+    /* Subscribe toasts carry a multi-line per-step breakdown. */
+    white-space: pre-line;
 }
 
 /* Tiny "＋" pill prepended inside aio-data-lander-relation's flex row.

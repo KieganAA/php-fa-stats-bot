@@ -234,7 +234,12 @@ final class CampaignTelegram
         $mvts = $children->where('mode', UserCompareGroup::MODE_MVT);
 
         $lines = [$head];
-        $lines[] = "Буду пушить (каждые ".self::intervalLabel($sub->notify_interval_minutes)."):";
+        // What the analyzer saw, step by step — makes "why only 1 split when
+        // the AIO UI shows 6 rows" self-explanatory (duplicates / disabled).
+        if ($result->structure !== null && $result->structure->steps !== []) {
+            $lines[] = '<i>'.self::escape(implode('; ', $result->structure->describeSteps())).'</i>';
+        }
+        $lines[] = 'Буду пушить ('.self::scheduleLabel($sub).'):';
         if ($splits->isNotEmpty()) {
             $lines[] = "\n<b>Сплиты ({$splits->count()}):</b>";
             foreach ($splits as $c) {
@@ -296,7 +301,7 @@ final class CampaignTelegram
         $summary = $parts !== [] ? implode(' · ', $parts) : 'пусто';
 
         $line = "<code>{$sub->shortLabel()}</code>{$paused} — ".self::escape(self::truncate($sub->campaign_name, 38))."\n".
-            "   {$summary}, каждые ".self::intervalLabel($sub->notify_interval_minutes);
+            "   {$summary}, ".self::scheduleLabel($sub);
         if ($orphans->isNotEmpty()) {
             $line .= "\n   ⚠️ {$orphans->count()} пропало из структуры";
         }
@@ -321,6 +326,17 @@ final class CampaignTelegram
         $pos = strpos($name, '· ');
 
         return $pos !== false ? trim(substr($name, $pos + strlen('· '))) : $name;
+    }
+
+    /** "каждые 3 ч" or "ежедневно в 19:00" depending on the schedule mode. */
+    private static function scheduleLabel(CampaignSubscription $sub): string
+    {
+        if (($sub->schedule_type ?? UserCompareGroup::SCHEDULE_INTERVAL) === UserCompareGroup::SCHEDULE_DAILY
+            && $sub->daily_at !== null) {
+            return 'ежедневно в '.$sub->daily_at;
+        }
+
+        return 'каждые '.self::intervalLabel($sub->notify_interval_minutes ?? CampaignSubscription::DEFAULT_INTERVAL_MINUTES);
     }
 
     private static function intervalLabel(int $minutes): string

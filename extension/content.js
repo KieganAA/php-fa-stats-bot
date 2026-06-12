@@ -196,10 +196,16 @@ async function onSubscribeCampaign(rel, humanId, name, btn) {
         btn.dataset.busy = '0';
         applyCampButtonState(btn, humanId);
 
+        // Per-step analyzer breakdown so "why this count" is visible right in
+        // the toast — e.g. "шаг 2: 1 ленд (+2 дубл., 3 выкл.)".
+        const steps = Array.isArray(data?.steps) && data.steps.length
+            ? `\n${data.steps.join('\n')}`
+            : '';
+
         if (splits === 0 && mvts === 0) {
-            flashOk(`${label}: ни сплитов, ни MVT — пушить нечего.`);
+            flashOk(`${label}: ни сплитов, ни MVT — пушить нечего.${steps}`);
         } else {
-            flashOk(`✅ ${label} — ${splits} сплит, ${mvts} MVT. Пуш каждые ${hours}ч.`);
+            flashOk(`✅ ${label} — ${splits} сплит, ${mvts} MVT. Пуш каждые ${hours}ч.${steps}`);
         }
     } catch (e) {
         btn.dataset.busy = '0';

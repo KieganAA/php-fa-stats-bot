@@ -29,6 +29,16 @@ final class CampaignStructure
         return array_values(array_filter($this->steps, fn (CampaignStep $s) => $s->isSplit()));
     }
 
+    /**
+     * Per-step one-liners for subscribe summaries ("шаг 1: 3 ленда → сплит").
+     *
+     * @return list<string>
+     */
+    public function describeSteps(): array
+    {
+        return array_map(fn (CampaignStep $s) => $s->describe(), $this->steps);
+    }
+
     /** @return list<string> distinct landing uuids across all steps */
     public function allLandingUuids(): array
     {

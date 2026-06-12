@@ -15,6 +15,11 @@ class UserCompareGroup extends Model
 
     public const DEFAULT_INTERVAL_MINUTES = 180;
 
+    /** Schedule modes: every-N-minutes vs once a day at a fixed local time. */
+    public const SCHEDULE_INTERVAL = 'interval';
+
+    public const SCHEDULE_DAILY = 'daily';
+
     /** Preset intervals offered in the picker (minutes). */
     public const INTERVAL_OPTIONS = [60, 180, 360, 720, 1440];
 
@@ -38,9 +43,12 @@ class UserCompareGroup extends Model
     ];
 
     /**
-     * True when the cron tick should fire a push for this group: either we've
-     * never pushed, or the configured interval has elapsed. Kept on the model
-     * so SnapshotCommand and tests share the exact same condition.
+     * True when the cron tick should fire a push for this group. Two modes:
+     *   - interval (default): last push + notify_interval_minutes has elapsed
+     *   - daily: it's past `daily_at` (user-local time) and we haven't pushed
+     *     since that moment today
+     * Kept on the model so SnapshotCommand and tests share the exact same
+     * condition.
      */
     public function isDueForPush(\DateTimeInterface $now): bool
     {
@@ -52,6 +60,11 @@ class UserCompareGroup extends Model
         if ($this->orphaned_at !== null) {
             return false;
         }
+
+        if (($this->schedule_type ?? self::SCHEDULE_INTERVAL) === self::SCHEDULE_DAILY && $this->daily_at !== null) {
+            return $this->isDueDaily($now);
+        }
+
         if ($this->last_notified_at === null) {
             return true;
         }
@@ -60,6 +73,31 @@ class UserCompareGroup extends Model
         $next = $this->last_notified_at->copy()->addMinutes($interval);
 
         return $next <= $now;
+    }
+
+    /**
+     * Daily mode: fire once per local day, at the first tick AFTER `daily_at`
+     * in the user's timezone. "Pushed already today" = last_notified_at is at
+     * or after today's target moment.
+     */
+    private function isDueDaily(\DateTimeInterface $now): bool
+    {
+        $tz = $this->user?->timezone ?: config('app.timezone', 'UTC');
+
+        try {
+            $local = \Carbon\CarbonImmutable::instance($now)->setTimezone($tz);
+            [$h, $m] = array_map('intval', explode(':', (string) $this->daily_at) + [0, 0]);
+            $target = $local->startOfDay()->setTime($h, $m);
+        } catch (\Throwable) {
+            return false; // malformed daily_at / tz — never spam, just skip
+        }
+
+        if ($local < $target) {
+            return false; // today's slot hasn't arrived yet
+        }
+
+        return $this->last_notified_at === null
+            || $this->last_notified_at->copy()->setTimezone($tz) < $target;
     }
 
     public function user(): BelongsTo

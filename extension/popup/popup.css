@@ -163,9 +163,17 @@ code {
     gap: 8px;
     margin-top: 2px;
 }
-.interval { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
-.interval-sel {
-    padding: 2px 4px;
+.interval-rng {
+    flex: 1;
+    min-width: 70px;
+    max-width: 130px;
+    accent-color: var(--accent);
+    height: 14px;
+}
+.rng-lbl { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.sched-lbl { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.daily-at {
+    padding: 1px 4px;
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--fg);

@@ -80,10 +80,14 @@ class CampaignsController
             'ok' => true,
             'campaign' => $this->serialize($sub),
             'changed' => $this->changed($result),
+            // Per-step analyzer breakdown ("шаг 1: 3 ленда → сплит; шаг 2: 1
+            // ленд (+2 дубл., 3 выкл.)") — surfaces WHY the split/MVT counts
+            // are what they are, e.g. disabled toggles or weight duplicates.
+            'steps' => $result->structure?->describeSteps() ?? [],
         ]);
     }
 
-    /** Change cadence / pause. Interval propagates to the children. */
+    /** Change schedule (interval / daily-at) or pause. Propagates to children. */
     public function update(Request $request, AppContext $ctx, CampaignSubscription $campaign): JsonResponse
     {
         if (! $this->owns($ctx, $campaign)) {
@@ -97,17 +101,35 @@ class CampaignsController
                 UserCompareGroup::INTERVAL_MIN,
                 UserCompareGroup::INTERVAL_MAX,
             ),
+            'schedule_type' => 'sometimes|in:interval,daily',
+            'daily_at' => ['sometimes', 'nullable', 'regex:/^([01]?\d|2[0-3]):[0-5]\d$/'],
         ]);
 
         if (array_key_exists('paused', $data)) {
             $campaign->paused_at = $data['paused'] ? CarbonImmutable::now() : null;
         }
+
+        // The schedule lives on the children (that's what the push tick reads),
+        // so every schedule field change is copied down to them.
+        $childPatch = [];
         if (array_key_exists('notify_interval_minutes', $data)) {
-            $interval = (int) $data['notify_interval_minutes'];
-            $campaign->notify_interval_minutes = $interval;
-            // Cadence lives on the children (that's what the push tick reads),
-            // so push it down to every child of this campaign.
-            $campaign->children()->update(['notify_interval_minutes' => $interval]);
+            $campaign->notify_interval_minutes = (int) $data['notify_interval_minutes'];
+            $childPatch['notify_interval_minutes'] = $campaign->notify_interval_minutes;
+        }
+        if (array_key_exists('schedule_type', $data)) {
+            $campaign->schedule_type = $data['schedule_type'];
+            $childPatch['schedule_type'] = $data['schedule_type'];
+        }
+        if (array_key_exists('daily_at', $data)) {
+            // Normalise "9:30" → "09:30" so string comparisons stay sane.
+            $dailyAt = $data['daily_at'] !== null
+                ? sprintf('%02d:%02d', ...array_map('intval', explode(':', $data['daily_at'])))
+                : null;
+            $campaign->daily_at = $dailyAt;
+            $childPatch['daily_at'] = $dailyAt;
+        }
+        if ($childPatch !== []) {
+            $campaign->children()->update($childPatch);
         }
         $campaign->save();
 
@@ -133,6 +155,7 @@ class CampaignsController
             'ok' => true,
             'campaign' => $this->serialize($campaign->fresh(['children.members.trackedLanding.landing'])),
             'changed' => $this->changed($result),
+            'steps' => $result->structure?->describeSteps() ?? [],
         ]);
     }
 
@@ -214,8 +237,22 @@ class CampaignsController
         $interval = (int) ($sub->notify_interval_minutes ?? CampaignSubscription::DEFAULT_INTERVAL_MINUTES);
 
         // Earliest upcoming push across active, non-paused children.
+        $isDaily = ($sub->schedule_type ?? UserCompareGroup::SCHEDULE_INTERVAL) === UserCompareGroup::SCHEDULE_DAILY
+            && $sub->daily_at !== null;
         $nextPush = null;
-        if ($sub->paused_at === null) {
+        if ($sub->paused_at === null && $isDaily) {
+            // Next daily slot in the user's timezone: today if it hasn't fired
+            // yet, otherwise tomorrow.
+            $tz = $sub->user?->timezone ?: config('app.timezone', 'UTC');
+            [$h, $m] = array_map('intval', explode(':', $sub->daily_at) + [0, 0]);
+            $local = CarbonImmutable::now($tz);
+            $slot = $local->startOfDay()->setTime($h, $m);
+            $fired = $active->contains(fn ($c) => $c->last_notified_at !== null
+                && $c->last_notified_at->copy()->setTimezone($tz) >= $slot);
+            // fired today → tomorrow; slot still ahead → today; slot passed
+            // but not fired yet → the next cron tick (≈now).
+            $nextPush = $fired ? $slot->addDay() : ($local < $slot ? $slot : $local);
+        } elseif ($sub->paused_at === null) {
             foreach ($active as $child) {
                 $last = $child->last_notified_at;
                 $candidate = $last === null ? CarbonImmutable::now() : $last->copy()->addMinutes($interval);
@@ -234,6 +271,8 @@ class CampaignsController
             'countries' => is_array($sub->countries) ? $sub->countries : [],
             'paused' => $sub->paused_at !== null,
             'notify_interval_minutes' => $interval,
+            'schedule_type' => $sub->schedule_type ?? UserCompareGroup::SCHEDULE_INTERVAL,
+            'daily_at' => $sub->daily_at,
             'last_synced_at' => $sub->last_synced_at?->toIso8601String(),
             'next_push_at' => $nextPush?->toIso8601String(),
             'splits' => $active->where('mode', UserCompareGroup::MODE_COMPARE)->count(),

@@ -3,8 +3,8 @@
     "file": "assets/TelegramHtml-C0RsbMBm.css",
     "src": "_TelegramHtml-C0RsbMBm.css"
   },
-  "_TelegramHtml-CMrs6q0x.js": {
-    "file": "assets/TelegramHtml-CMrs6q0x.js",
+  "_TelegramHtml-ENCJTwVK.js": {
+    "file": "assets/TelegramHtml-ENCJTwVK.js",
     "name": "TelegramHtml",
     "imports": [
       "__plugin-vue_export-helper-BDNMzG2s.js",
@@ -18,8 +18,8 @@
     "file": "assets/_plugin-vue_export-helper-BDNMzG2s.js",
     "name": "_plugin-vue_export-helper"
   },
-  "_api-CTIbKtld.js": {
-    "file": "assets/api-CTIbKtld.js",
+  "_api-CT_X-CPH.js": {
+    "file": "assets/api-CT_X-CPH.js",
     "name": "api",
     "imports": [
       "resources/js/app.js"
@@ -35,7 +35,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-BcXNbCbf.js",
+    "file": "assets/app-rfmuOOK6.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -48,7 +48,7 @@
     ]
   },
   "resources/js/views/Help.vue": {
-    "file": "assets/Help-ItUO5FbV.js",
+    "file": "assets/Help-DbDEfezr.js",
     "name": "Help",
     "src": "resources/js/views/Help.vue",
     "isDynamicEntry": true,
@@ -58,46 +58,46 @@
     ]
   },
   "resources/js/views/Settings.vue": {
-    "file": "assets/Settings-D1G5nTSy.js",
+    "file": "assets/Settings-DJjUvNNr.js",
     "name": "Settings",
     "src": "resources/js/views/Settings.vue",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/app.js",
-      "_api-CTIbKtld.js"
+      "_api-CT_X-CPH.js"
     ]
   },
   "resources/js/views/Stats.vue": {
-    "file": "assets/Stats-Bn68c0YL.js",
+    "file": "assets/Stats-Be3jorVp.js",
     "name": "Stats",
     "src": "resources/js/views/Stats.vue",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/app.js",
-      "_api-CTIbKtld.js",
-      "_TelegramHtml-CMrs6q0x.js"
+      "_api-CT_X-CPH.js",
+      "_TelegramHtml-ENCJTwVK.js"
     ]
   },
   "resources/js/views/Subs.vue": {
-    "file": "assets/Subs-B2-lR3RY.js",
+    "file": "assets/Subs-B5Pal3D5.js",
     "name": "Subs",
     "src": "resources/js/views/Subs.vue",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/app.js",
-      "_api-CTIbKtld.js"
+      "_api-CT_X-CPH.js"
     ]
   },
   "resources/js/views/Top.vue": {
-    "file": "assets/Top-DEJD0hBL.js",
+    "file": "assets/Top-CyKkI6_f.js",
     "name": "Top",
     "src": "resources/js/views/Top.vue",
     "isDynamicEntry": true,
     "imports": [
       "__plugin-vue_export-helper-BDNMzG2s.js",
       "resources/js/app.js",
-      "_api-CTIbKtld.js",
-      "_TelegramHtml-CMrs6q0x.js"
+      "_api-CT_X-CPH.js",
+      "_TelegramHtml-ENCJTwVK.js"
     ],
     "css": [
       "assets/Top-Bbai5UqL.css"

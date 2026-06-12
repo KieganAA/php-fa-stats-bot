@@ -13,13 +13,15 @@ COMPOSE=(docker compose -f docker-compose.prod.yml)
 cd "$APP_DIR"
 
 echo "==> git pull"
+git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
 git pull --ff-only
+
+echo "==> fix ownership (app container runs as uid 1000; checkout is root's)"
+mkdir -p vendor storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
+chown -R 1000:1000 .
 
 echo "==> composer install"
 "${COMPOSE[@]}" run --rm --no-deps app composer install --no-dev --optimize-autoloader --no-interaction
-
-echo "==> fix writable dirs (app runs as uid 1000)"
-chown -R 1000:1000 storage bootstrap/cache
 
 echo "==> migrate"
 "${COMPOSE[@]}" up -d postgres redis

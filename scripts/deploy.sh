@@ -12,9 +12,14 @@ COMPOSE=(docker compose -f docker-compose.prod.yml)
 
 cd "$APP_DIR"
 
-echo "==> git pull"
-git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-git pull --ff-only
+# git pull may update THIS file mid-run; bash reads scripts streamingly, so we
+# re-exec the fresh copy right after pulling (once — guarded by the flag).
+if [ "${1:-}" != "--post-pull" ]; then
+    echo "==> git pull"
+    git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+    git pull --ff-only
+    exec bash "$APP_DIR/scripts/deploy.sh" --post-pull
+fi
 
 echo "==> fix ownership (app container runs as uid 1000; checkout is root's)"
 mkdir -p vendor storage/framework/{cache,sessions,views} storage/logs bootstrap/cache

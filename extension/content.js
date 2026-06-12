@@ -12,10 +12,19 @@
 // pivot — they live in git history if landing subscriptions come back.)
 
 const STATE = {
-    subscribed: new Map(),   // String(human_id) -> { id, splits, mvts, name }
+    subscribed: new Map(),   // normId(human_id) -> { id, splits, mvts, name }
     loadedAt: 0,
     loading: false,
 };
+
+// Normalise a human_id to its canonical numeric string. The campaigns list
+// renders zero-padded ids ("093076") while the API stores them as ints
+// (93076) — without stripping the padding the "already subscribed" lookup
+// never matches and the green ✓ doesn't appear.
+function normId(x) {
+    const n = parseInt(String(x), 10);
+    return Number.isFinite(n) ? String(n) : '';
+}
 
 const SCAN_DEBOUNCE_MS = 400;
 const SUBS_REFRESH_MS = 60_000;
@@ -59,7 +68,7 @@ async function loadSubscribed({ force = false } = {}) {
         STATE.subscribed = new Map();
         for (const c of list) {
             if (c.human_id === null || c.human_id === undefined) continue;
-            STATE.subscribed.set(String(c.human_id), {
+            STATE.subscribed.set(normId(c.human_id), {
                 id: c.id,
                 splits: c.splits ?? 0,
                 mvts: c.mvts ?? 0,
@@ -149,7 +158,7 @@ function decorateCampaign(rel, humanId) {
 // Reflect subscribed / not-subscribed in the button face + tooltip.
 function applyCampButtonState(btn, humanId) {
     if (btn.dataset.busy === '1') return;
-    const sub = STATE.subscribed.get(String(humanId));
+    const sub = STATE.subscribed.get(normId(humanId));
     btn.classList.remove('bs-camp-btn-err');
     if (sub) {
         btn.textContent = '✓';
@@ -180,7 +189,7 @@ async function onSubscribeCampaign(rel, humanId, name, btn) {
         const hours = Math.round((c.notify_interval_minutes ?? 180) / 60);
         const label = c.label || `#${humanId}`;
 
-        STATE.subscribed.set(String(humanId), {
+        STATE.subscribed.set(normId(humanId), {
             id: c.id, splits, mvts, paused: !!c.paused, name: c.name || name,
         });
 

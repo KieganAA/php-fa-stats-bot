@@ -63,11 +63,17 @@ services:
     <<: *app-common
     command: ["php", "artisan", "queue:work", "redis", "--tries=3", "--sleep=1", "--max-time=3600"]
     mem_limit: 384m
+    # The base frankenphp image health-checks the Caddy admin port — meaningless
+    # for queue:work; disable so the container doesn't read as "unhealthy".
+    healthcheck:
+      disable: true
 
   scheduler:
     <<: *app-common
     command: ["php", "artisan", "schedule:work"]
     mem_limit: 256m
+    healthcheck:
+      disable: true
 
   postgres:
     image: postgres:16-alpine

@@ -4,8 +4,12 @@ return [
     // The Telegram BOT api token
     'token' => env('TELEGRAM_TOKEN'),
 
-    // if the webhook mode must validate the incoming IP range is from a telegram server
-    'safe_mode' => env('APP_ENV', 'local') === 'production',
+    // Telegram-IP-range validation for webhook mode. MUST stay off: prod sits
+    // behind Cloudflare + a local Caddy hop, so REMOTE_ADDR is never a
+    // Telegram IP and safe_mode silently drops every update (bot goes mute
+    // while Telegram still sees 2xx). Authentication is handled by the
+    // X-Telegram-Bot-Api-Secret-Token check in VerifyTelegramWebhook instead.
+    'safe_mode' => false,
 
     // Extra or specific configurations
     'config' => [],

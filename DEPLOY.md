@@ -30,6 +30,14 @@ One-off commands on prod:
 ssh root@164.92.219.14 'cd /opt/fa-stats-bot && docker compose -f docker-compose.prod.yml exec app php artisan <cmd>'
 ```
 
+Telegram wiring (already done; re-run only after URL/secret changes):
+
+```bash
+php artisan tg:set-webhook      # TELEGRAM_WEBHOOK_URL + secret (NOT nutgram:hook:set — that one ignores our secret)
+php artisan tg:set-commands     # slash-command menu
+php artisan tg:set-menu-button  # Mini App button → APP_URL/app
+```
+
 ---
 
 ## Generic guide

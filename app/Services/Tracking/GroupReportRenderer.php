@@ -18,6 +18,9 @@ use App\Services\Stats\MvtReporter;
  */
 final class GroupReportRenderer
 {
+    /** Funnel positions to probe when the structure guess yields no data. */
+    private const CANDIDATE_POSITIONS = [1, 2, 3, 4];
+
     public function __construct(
         private readonly ComparisonReporter $compare,
         private readonly MvtReporter $mvt,
@@ -46,31 +49,25 @@ final class GroupReportRenderer
     private function renderCompare(UserCompareGroup $group, array $window, ?array $metricNames, array $labelOverrides, ?string $campaignUuid, bool $digestMode): ?string
     {
         $tokens = [];
-        $position = 1;
+        $structurePosition = 1;
         foreach ($group->members as $m) {
             $landing = $m->trackedLanding?->landing;
             if ($landing === null) {
                 continue;
             }
-            // Split members all live on the same funnel step — querying the
-            // wrong position returns zero rows, so carry the tracked position.
-            $position = (int) ($m->trackedLanding->position ?? 1);
+            $structurePosition = (int) ($m->trackedLanding->position ?? 1);
             $tokens[] = $landing->human_id !== null ? (string) $landing->human_id : $landing->uuid;
         }
         if (count($tokens) < 2) {
             return null; // compare requires ≥2
         }
 
-        return $this->compare->report(
-            $tokens,
-            $window,
-            $metricNames,
-            $labelOverrides,
-            $campaignUuid,
-            $position,
-            nullIfEmpty: $digestMode,
-            withHeader: ! $digestMode,
+        $render = fn (int $pos, bool $nullIfEmpty): ?string => $this->compare->report(
+            $tokens, $window, $metricNames, $labelOverrides, $campaignUuid, $pos,
+            nullIfEmpty: $nullIfEmpty, withHeader: ! $digestMode,
         );
+
+        return $this->withResolvedPosition($group, $campaignUuid, $structurePosition, $digestMode, $render);
     }
 
     /**
@@ -85,13 +82,57 @@ final class GroupReportRenderer
             return null;
         }
 
-        $position = (int) ($member->trackedLanding->position ?? 1);
-        $report = $this->mvt->report($landing, $window, $position, $campaignUuid);
+        $structurePosition = (int) ($member->trackedLanding->position ?? 1);
 
-        if ($digestMode && $report['rows'] === []) {
-            return null; // no variant traffic in the window
+        $render = function (int $pos, bool $nullIfEmpty) use ($landing, $window, $metricNames, $labelOverrides, $campaignUuid, $digestMode): ?string {
+            $report = $this->mvt->report($landing, $window, $pos, $campaignUuid);
+            if ($nullIfEmpty && $report['rows'] === []) {
+                return null;
+            }
+
+            return $this->mvtFormatter->format($report, $metricNames, $labelOverrides, withHeader: ! $digestMode);
+        };
+
+        return $this->withResolvedPosition($group, $campaignUuid, $structurePosition, $digestMode, $render);
+    }
+
+    /**
+     * Run $render at the right funnel position, self-healing the structure
+     * guess. Once a position with data is found it's cached on the group, so
+     * later pushes go straight there. Non-campaign groups (no scope) just
+     * render at their stored position.
+     *
+     * @param  callable(int, bool): ?string  $render  (position, nullIfEmpty) → html|null
+     */
+    private function withResolvedPosition(UserCompareGroup $group, ?string $campaignUuid, int $structurePosition, bool $digestMode, callable $render): ?string
+    {
+        // Non-campaign groups (legacy /bind): no position ambiguity to resolve.
+        if ($campaignUuid === null) {
+            return $render($structurePosition, $digestMode);
         }
 
-        return $this->mvtFormatter->format($report, $metricNames, $labelOverrides, withHeader: ! $digestMode);
+        // Already detected once — trust it, no probing (even on a zero-traffic
+        // day, where every position would read empty anyway).
+        if ($group->resolved_position !== null) {
+            return $render($group->resolved_position, $digestMode);
+        }
+
+        // Never detected: AIO's settings-dict step order can disagree with the
+        // analytics LP position (even be reversed), so probe candidates and
+        // cache the first that returns data.
+        $candidates = array_values(array_unique([$structurePosition, ...self::CANDIDATE_POSITIONS]));
+        foreach ($candidates as $pos) {
+            $html = $render($pos, true);
+            if ($html !== null) {
+                $group->resolved_position = $pos;
+                $group->save();
+
+                return $html;
+            }
+        }
+
+        // Nothing anywhere this window — digest collapses the section; a
+        // standalone group still shows its (empty) table at the guess.
+        return $digestMode ? null : $render($structurePosition, false);
     }
 }

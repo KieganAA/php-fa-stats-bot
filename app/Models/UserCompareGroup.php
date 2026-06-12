@@ -40,6 +40,7 @@ class UserCompareGroup extends Model
         'orphaned_at' => 'datetime',
         'notify_interval_minutes' => 'integer',
         'step_position' => 'integer',
+        'resolved_position' => 'integer',
     ];
 
     /**

@@ -32,6 +32,9 @@ final class NotifyCampaignJobTest extends TestCase
     /** @var list<string> landing uuids whose pivot rows return traffic */
     private array $trafficUuids = [];
 
+    /** When set, pivot returns data ONLY for this landing_uuids[N] position. */
+    private ?int $trafficPosition = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -61,9 +64,15 @@ final class NotifyCampaignJobTest extends TestCase
             // for landings flagged as having traffic.
             'app.aio.test/api/v1/pivot-report/data*' => function ($request) {
                 $body = json_decode($request->body(), true) ?: [];
-                $values = collect($body['conditions'] ?? [])
-                    ->flatMap(fn ($c) => $c['values'] ?? [])
-                    ->all();
+                $conditions = collect($body['conditions'] ?? []);
+                // Position the query filters on (landing_uuids[N]).
+                $landingCond = $conditions->first(fn ($c) => str_starts_with((string) ($c['key'] ?? ''), 'landing_uuids['));
+                $pos = $landingCond ? (int) preg_replace('/\D/', '', $landingCond['key']) : null;
+                if ($this->trafficPosition !== null && $pos !== $this->trafficPosition) {
+                    return Http::response([]); // no data at this position
+                }
+
+                $values = $conditions->flatMap(fn ($c) => $c['values'] ?? [])->all();
                 $tree = [];
                 foreach ($values as $uuid) {
                     if (in_array($uuid, $this->trafficUuids, true)) {
@@ -100,6 +109,30 @@ final class NotifyCampaignJobTest extends TestCase
         foreach ($sub->children()->get() as $child) {
             $this->assertNotNull($child->last_notified_at, 'every child stamped');
         }
+    }
+
+    public function test_self_heals_inverted_funnel_position_and_caches_it(): void
+    {
+        // Structure says step-1 landings sit at LP1, but analytics attributes
+        // their traffic to LP2 (AIO dict order ≠ funnel order). The digest must
+        // still find the data by probing positions, and cache the result.
+        $this->steps = ['step-1' => ['lp-a', 'lp-b']];
+        $this->trafficUuids = ['lp-a', 'lp-b'];
+        $this->trafficPosition = 2; // data lives at LP2, not the structure's LP1
+        [$user, $sub] = $this->subscribe();
+
+        $child = $sub->children()->firstOrFail();
+        $this->assertSame(1, $child->step_position);     // structure guess
+        $this->assertNull($child->resolved_position);    // not yet detected
+
+        $bot = Nutgram::fake();
+        (new NotifyCampaignJob($user->id, $sub->id))
+            ->handle($bot, app(GroupReportRenderer::class), app(PeriodParser::class));
+
+        $bot->assertCalled('sendMessage', 1);
+        $bot->assertRaw(fn ($request) => str_contains(self::messageText($request), '#8001')); // rendered with data
+
+        $this->assertSame(2, $child->fresh()->resolved_position, 'detected funnel position cached');
     }
 
     public function test_fully_silent_campaign_sends_short_one_liner(): void

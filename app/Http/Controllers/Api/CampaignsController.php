@@ -9,6 +9,7 @@ use App\Services\Auth\AppContext;
 use App\Services\Campaign\CampaignSubscriptionService;
 use App\Services\Campaign\CampaignTokenResolver;
 use App\Services\Campaign\Dto\ResyncResult;
+use App\Services\Campaign\Exceptions\EmptyCampaignException;
 use App\Services\Tracking\CompareGroupUnbinder;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -59,6 +60,9 @@ class CampaignsController
 
         try {
             $result = $service->create($user, $uuid);
+        } catch (EmptyCampaignException $e) {
+            // Nothing to subscribe to — a clear 422, not an upstream error.
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (Throwable $e) {
             return response()->json([
                 'ok' => false,

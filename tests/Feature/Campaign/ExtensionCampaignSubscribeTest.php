@@ -130,6 +130,19 @@ final class ExtensionCampaignSubscribeTest extends TestCase
         );
     }
 
+    public function test_subscribe_to_empty_campaign_returns_422(): void
+    {
+        // Single landing, no MVT → nothing to track.
+        $this->fakeAio(steps: ['step-1' => ['lp-a']], mvtLandings: []);
+        [$user, $headers] = $this->authedUser();
+
+        $this->postJson('/api/ext/campaign', ['campaign' => self::uuid()], $headers)
+            ->assertStatus(422)
+            ->assertJsonPath('ok', false);
+
+        $this->assertSame(0, CampaignSubscription::query()->where('user_id', $user->id)->count());
+    }
+
     public function test_unknown_human_id_returns_422(): void
     {
         $this->searchRows = []; // search finds nothing

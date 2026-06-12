@@ -88,12 +88,28 @@ async function loadSubscribed({ force = false } = {}) {
 //   <div class="data-campaign-relation__name">  ← name
 function scan() {
     for (const rel of document.querySelectorAll('aio-data-campaign-relation')) {
-        if (rel.dataset.bsCampMounted) continue;
         const humanId = extractHumanId(rel);
         if (!humanId) continue;
-        const name = rel.querySelector('.data-campaign-relation__name')?.textContent?.trim().slice(0, 80) ?? '';
-        decorateCampaign(rel, humanId, name);
+
+        if (rel.dataset.bsCampMounted) {
+            // AIO is an Angular SPA — it RECYCLES row nodes on search / filter /
+            // virtual-scroll, swapping the campaign inside an existing
+            // <aio-data-campaign-relation> without re-creating it. Our button
+            // would then keep the previous campaign's id. So whenever the id in
+            // the node no longer matches what we stored, re-bind the button.
+            if (rel.dataset.bsCampId !== humanId) {
+                rel.dataset.bsCampId = humanId;
+                const btn = rel.querySelector('.bs-camp-btn');
+                if (btn) { btn.dataset.busy = '0'; applyCampButtonState(btn, humanId); }
+            }
+            continue;
+        }
+        decorateCampaign(rel, humanId);
     }
+}
+
+function nameOf(rel) {
+    return rel.querySelector('.data-campaign-relation__name')?.textContent?.trim().slice(0, 80) ?? '';
 }
 
 function extractHumanId(rel) {
@@ -106,10 +122,9 @@ function extractHumanId(rel) {
     return null;
 }
 
-function decorateCampaign(rel, humanId, name) {
+function decorateCampaign(rel, humanId) {
     rel.dataset.bsCampMounted = '1';
     rel.dataset.bsCampId = humanId;
-    rel.dataset.bsCampName = name;
 
     const btn = document.createElement('button');
     btn.className = 'bs-camp-btn';
@@ -120,7 +135,11 @@ function decorateCampaign(rel, humanId, name) {
     btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        onSubscribeCampaign(rel, humanId, name, btn);
+        // Read id + name from the DOM AT CLICK TIME — the node may have been
+        // recycled for a different campaign since we attached this handler.
+        const id = extractHumanId(rel);
+        if (!id) return;
+        onSubscribeCampaign(rel, id, nameOf(rel), btn);
     });
 
     applyCampButtonState(btn, humanId);

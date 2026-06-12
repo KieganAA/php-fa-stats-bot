@@ -13,6 +13,7 @@ use App\Services\Campaign\Dto\CampaignAnalysis;
 use App\Services\Campaign\Dto\MvtDescriptor;
 use App\Services\Campaign\Dto\ResyncResult;
 use App\Services\Campaign\Dto\SplitDescriptor;
+use App\Services\Campaign\Exceptions\EmptyCampaignException;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -51,6 +52,21 @@ final class CampaignSubscriptionService
     {
         $analysis = $this->fetchAndAnalyze($campaignUuid);
         $structure = $analysis->structure;
+
+        // Nothing to track and not already subscribed → refuse. Creating a
+        // parent with zero children just makes a dead row that never pushes.
+        // (If they're ALREADY subscribed, fall through so resync can orphan the
+        // vanished children rather than silently leaving stale ones.)
+        $exists = CampaignSubscription::query()
+            ->where('user_id', $user->id)
+            ->where('campaign_uuid', $campaignUuid)
+            ->exists();
+        if (! $exists && $analysis->isEmpty()) {
+            $label = $structure->humanId !== null ? "#{$structure->humanId}" : 'эта кампания';
+            throw new EmptyCampaignException(
+                "В кампании {$label} нет ни сплитов, ни MVT — подписываться не на что.",
+            );
+        }
 
         $subscription = CampaignSubscription::query()->updateOrCreate(
             ['user_id' => $user->id, 'campaign_uuid' => $campaignUuid],

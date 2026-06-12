@@ -57,6 +57,21 @@ final class CampaignSubscriptionServiceTest extends TestCase
         ]);
     }
 
+    public function test_create_refuses_campaign_with_no_splits_or_mvt(): void
+    {
+        // One landing on the step, no MVT → nothing to track.
+        $this->fakeAio(steps: ['step-1' => ['lp-a']], mvtLandings: []);
+        $user = $this->makeUser();
+
+        $this->expectException(\App\Services\Campaign\Exceptions\EmptyCampaignException::class);
+        try {
+            $this->service()->create($user, self::CAMPAIGN_UUID);
+        } finally {
+            // No dead parent row left behind.
+            $this->assertSame(0, CampaignSubscription::query()->count());
+        }
+    }
+
     public function test_create_builds_split_and_mvt_children(): void
     {
         $this->fakeAio(

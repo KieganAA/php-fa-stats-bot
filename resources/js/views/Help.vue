@@ -6,12 +6,14 @@
         <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)] bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)]">
             <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Если коротко</h3>
             <p>
-                Это мини-апп для статистики из AIO. Открыл — выбрал страну/прокл/UUID, нажал
-                «Показать», получил цифры. Под капотом — те же отчёты, что бот шлёт в чат.
+                Бот следит за твоими кампаниями в AIO. Подписываешься на кампанию —
+                он сам находит внутри <b>сплиты</b> (2+ ленда на одном шаге) и
+                <b>MVT-ленды</b> (варианты заголовков/картинок) и шлёт по ним отчёты
+                в чат каждые N часов.
             </p>
             <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-                Все данные тянутся прямо из AIO в реальном времени. Кэш 3 минуты, чтобы
-                не дёргать сервер на каждое нажатие.
+                Не нужно выбирать ленды руками — бот раскладывает структуру кампании сам
+                и следит за её изменениями.
             </p>
         </section>
 
@@ -20,150 +22,100 @@
             <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">С чего начать</h3>
             <ol class="ml-4 list-decimal space-y-1.5">
                 <li>
-                    Сходи в <a href="#/settings" class="underline">Настройки</a> и проверь:
-                    часовой пояс (по умолчанию Москва UTC+3), период по умолчанию (сегодня),
-                    свой ключ Anthropic если хочешь AI-ответы на своей квоте.
+                    <b>Самый удобный путь</b> — Chrome-расширение: команда
+                    <code>/extension</code> в чате с ботом. После установки на странице
+                    кампаний AIO у каждой строки появляется <b>🔔</b> — один клик и подписка готова.
                 </li>
                 <li>
-                    Открой <a href="#/stats" class="underline">📊 Статы</a> и попробуй: введи
-                    <code>DK</code> или номер прокла (<code>33169</code>) — получишь срез.
+                    Без расширения: вкладка <a href="#/subs" class="underline">🔔 Подписки</a> —
+                    введи <code>human_id</code> кампании (например <code>036469</code>) и жми «Подписать».
+                    Или в чате: <code>/campaign 036469</code>.
                 </li>
                 <li>
-                    Хочешь периодические уведомления? <a href="#/subs" class="underline">🔔 Подписки</a>
-                    — выбираешь ленды, частоту (1–24ч), бот сам шлёт в чат каждый интервал.
+                    В <a href="#/settings" class="underline">⚙️ Настройках</a> проверь часовой пояс
+                    и набор колонок для пушей.
                 </li>
             </ol>
         </section>
 
-        <!-- Примитив -->
+        <!-- Что бот шлёт -->
         <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Что такое «примитив»</h3>
-            <p>В любое поле «примитив» принимается что-то одно из:</p>
-            <ul class="ml-4 list-disc space-y-0.5">
-                <li><b>Код страны</b> — <code>DK</code>, <code>BR</code>, <code>IT</code>, <code>US</code>…</li>
-                <li><b>human_id лендинга</b> — <code>33169</code>, <code>205228</code>…</li>
-                <li><b>UUID лендинга</b> — полный идентификатор из AIO</li>
-            </ul>
-            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-                Кампании, баеры и источники как самостоятельные примитивы — пока не подключены.
-                Баеры доступны через вкладку Топы.
-            </p>
-        </section>
-
-        <!-- Period -->
-        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Период</h3>
-            <p>В мини-аппе — кнопки <code>Сегодня / Вчера / 24ч / 7д / Неделя / Месяц</code>.</p>
-            <p>
-                В чате с ботом период можно писать как угодно — парсер понимает:
-            </p>
-            <ul class="ml-4 list-disc space-y-0.5">
-                <li><code>today</code> / <code>сегодня</code> (по умолчанию)</li>
-                <li><code>yesterday</code> / <code>вчера</code> / <code>позавчера</code></li>
-                <li><code>7d</code>, <code>24h</code>, <code>2w</code>, <code>1m</code></li>
-                <li><code>неделя</code>, <code>прошлая неделя</code>, <code>за месяц</code></li>
-                <li><code>3 дня</code>, <code>5 часов</code></li>
-            </ul>
-        </section>
-
-        <!-- Stats tab -->
-        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">📊 Статы</h3>
-            <p>Три режима, переключаются вверху страницы:</p>
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Что бот шлёт</h3>
             <ul class="ml-4 list-disc space-y-1">
                 <li>
-                    <b>Один</b> — одно значение примитива. Удобный блок с метриками построчно.
-                    Покажет тебе цифры выбранной страны/прокла за период.
+                    <b>🔀 Сплиты</b> — если на одном шаге кампании крутятся 2+ ленда, бот шлёт
+                    compare-таблицу между ними (с колонкой Δ% на двух лендах). Цифры считаются
+                    <i>в рамках этой кампании</i>, не глобально.
                 </li>
                 <li>
-                    <b>Сравнить</b> — два или больше примитива одного типа (только страны или
-                    только ленды). На двух ещё рисует колонку Δ% — разница в процентах слева
-                    направо.
-                </li>
-                <li>
-                    <b>MVT</b> — разбивка одного ленда по вариантам (lp_header, картинка,
-                    подзаголовок и т.д.). Видишь какой вариант выигрывает.
+                    <b>🧬 MVT</b> — если у ленда настроены варианты (заголовок, картинка…),
+                    бот шлёт разбивку по вариантам: видно, какой выигрывает.
                 </li>
             </ul>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
+                Частота — 1/3/6/12/24 ч, настраивается на каждую кампанию. Два отчёта в пуше:
+                за последние 3 часа и с начала трекинга.
+            </p>
         </section>
 
-        <!-- Top tab -->
+        <!-- Подписки tab -->
         <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">🏆 Топы</h3>
-            <p>Топ-15 за период в одну сторону. Четыре среза:</p>
+            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">🔔 Вкладка Подписки</h3>
+            <p>Каждая карточка — одна кампания. На карточке:</p>
             <ul class="ml-4 list-disc space-y-0.5">
-                <li><b>🌍 Гео</b> — топ стран по лидам</li>
-                <li><b>👤 Баеры</b> — топ campaign_owner по лидам</li>
-                <li><b>📄 LP1 / LP2</b> — топ лендов по позиции в воронке</li>
+                <li><b>⏸ / ▶️</b> — пауза/возобновление пушей всей кампании</li>
+                <li><b>🔄</b> — resync: перечитать структуру кампании из AIO прямо сейчас</li>
+                <li><b>🗑</b> — удалить подписку целиком</li>
+                <li><b>⏱ каждые…</b> — частота пушей</li>
+                <li><b>«N подписок внутри»</b> — раскрыть список сплитов и MVT</li>
             </ul>
             <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-                Таблицы заточены под телефон — 3 колонки метрик, fix-width шрифт, нет
-                переноса строк. Под каждый срез свой пресет метрик (см. Настройки).
+                Если из кампании пропал сплит или MVT (например, выключили вариант) — бот
+                помечает его ⚠️, останавливает пуши по нему и спрашивает в чате: удалить или
+                оставить. Оставленный вернётся сам, если снова появится в кампании.
             </p>
         </section>
 
-        <!-- Subs tab -->
-        <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
-            <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">🔔 Подписки</h3>
-            <p>Бот сам шлёт в чат отчёт каждые N часов по выбранным лендингам.</p>
-            <ol class="ml-4 list-decimal space-y-1">
-                <li>Жми в поиск ленда (по id, стране или названию) — подсказки выпадают по мере ввода.</li>
-                <li>Кликом добавляешь ленд в список. ↑/↓ — порядок, × — убрать.</li>
-                <li>Выбираешь частоту: <b>1ч / 3ч / 6ч / 12ч / 24ч</b>.</li>
-                <li>Сохраняешь — бот будет слать пуш по расписанию.</li>
-            </ol>
-            <p>
-                Один ленд → MVT-пуш (разбивка по вариантам). Два и больше → compare с Δ%
-                (сравнение между лендами).
-            </p>
-            <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-                Кнопки в списке подписок: ⏸/▶ пауза, ⏱ изменить частоту, × удалить.
-            </p>
-        </section>
-
-        <!-- Settings tab -->
+        <!-- Настройки tab -->
         <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
             <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">⚙️ Настройки</h3>
 
-            <p><b>Общие</b> — часовой пояс, период по умолчанию, позиция в воронке.</p>
+            <p><b>Общие</b> — часовой пояс (влияет на «сегодня» в отчётах) и период по умолчанию.</p>
 
-            <p><b>Отображение лендингов</b> — что показывать в таблицах. По умолчанию только
-                <code>#id · страна</code>. Можно добавить тип ленда и/или полное имя.</p>
+            <p><b>Отображение лендингов</b> — как подписывать ленды в таблицах. По умолчанию
+                <code>#id · страна</code>; можно добавить тип и/или полное имя.</p>
 
             <p>
-                <b>Метрики по контексту</b> — главная фича. У каждой команды свой набор колонок.
-                Под <b>geo</b> — 3 узкие колонки чтоб поместилось на телефон, под <b>stats</b> —
-                широкий набор из 7. Точка <span class="text-[10px]">●</span> рядом с табом
-                означает «свой пресет, не дефолтный». Сбросить на дефолт — кнопка справа сверху.
+                <b>Метрики в пушах</b> — какие колонки бот показывает в нотификациях:
+                отдельный набор для <b>🔀 сплитов</b> и для <b>🧬 MVT</b>. Поиск по ~80 метрикам
+                AIO, порядок строк = порядок колонок. Точка <span class="text-[10px]">●</span>
+                на табе = свой пресет (не дефолт), сброс — кнопкой справа.
             </p>
 
             <p>
-                <b>Переименовать метрики</b> — глобально, во всех отчётах. Пример:
-                <code>Q Visits</code> → <i>Quals</i>, <code>Real Approve</code> → <i>CR</i>.
-                Подпись меняется одна на все таблицы.
+                <b>Переименовать метрики</b> — своя подпись колонки во всех отчётах:
+                <code>Q Visits</code> → <i>Quals</i>.
             </p>
 
             <p>
-                <b>Anthropic</b> — свой ключ для AI-ответов в чате. Пустой → используется
-                общий серверный.
+                <b>Anthropic</b> — свой API-ключ для AI-ответов в чате (пусто → общий серверный).
             </p>
         </section>
 
         <!-- Chat -->
         <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
             <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">💬 Бот в чате</h3>
-            <p>Команды дублируют вкладки, плюс есть свободный ввод:</p>
             <ul class="ml-4 list-disc space-y-0.5">
-                <li><code>/stats &lt;id|страна&gt; [период]</code></li>
-                <li><code>/compare &lt;a&gt; &lt;b&gt; [...] [период]</code></li>
-                <li><code>/geo</code>, <code>/buyers</code>, <code>/lps1</code>, <code>/lps2</code></li>
-                <li><code>/mvt &lt;id&gt;</code></li>
-                <li><code>/bind</code>, <code>/groups</code>, <code>/unbind</code> — управление подписками с командной строки</li>
+                <li><code>/campaign &lt;human_id|uuid&gt;</code> — подписаться на кампанию</li>
+                <li><code>/campaigns</code> — список подписок со статусами</li>
+                <li><code>/resync</code> — обновить структуру всех кампаний (или одной: <code>/resync &lt;id&gt;</code>)</li>
+                <li><code>/extension</code> — установить Chrome-расширение (внутри гайд)</li>
+                <li><code>/open</code> — открыть этот мини-апп</li>
             </ul>
             <p>
-                Можно писать <b>свободным текстом</b> — <code>как DK</code>,
-                <code>33169 за неделю</code>, <code>сравни DK и BR</code>. AI (Claude) разбирает
-                русский, сам решает что вызвать.
+                Свободный текст тоже работает — <code>как DK</code>, <code>33169 за неделю</code>,
+                <code>сравни DK и BR</code>. AI разбирает вопрос и отвечает цифрами из AIO.
+                Период пишется как угодно: <code>вчера</code>, <code>7d</code>, <code>прошлая неделя</code>.
             </p>
         </section>
 
@@ -171,10 +123,10 @@
         <section class="space-y-2 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]">
             <h3 class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">Про данные</h3>
             <ul class="ml-4 list-disc space-y-0.5">
-                <li>Цифры тянутся из AIO напрямую, кэш 3 минуты.</li>
+                <li>Цифры тянутся из AIO напрямую, кэш ~3 минуты.</li>
+                <li>Сплиты считаются в рамках конкретной кампании, MVT — по варианту ленда.</li>
                 <li>Время в отчётах — в твоём часовом поясе из Настроек.</li>
-                <li>«Сегодня» — это полночь→сейчас в твоей тз.</li>
-                <li>Метрики имеют четыре формата: count (15.2K), ratio (12.3%), percent, money ($).</li>
+                <li>Структура кампании перечитывается по кнопке 🔄 на карточке или командой /resync.</li>
             </ul>
         </section>
     </div>

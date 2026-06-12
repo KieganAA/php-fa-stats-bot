@@ -36,16 +36,6 @@
                 </select>
             </label>
 
-            <label class="block">
-                <span class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">Позиция в воронке по умолчанию</span>
-                <select
-                    v-model.number="form.default_position"
-                    class="w-full mt-1 px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
-                >
-                    <option v-for="n in 5" :key="n" :value="n">LP{{ n }}</option>
-                </select>
-            </label>
-
             <button
                 type="submit"
                 class="w-full px-4 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-50"
@@ -84,11 +74,11 @@
             class="space-y-3 p-3 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
         >
             <div class="text-xs uppercase font-medium text-[var(--tg-theme-hint-color,#6b7280)]">
-                Метрики по контексту
+                Метрики в пушах
             </div>
             <p class="text-xs text-[var(--tg-theme-hint-color,#6b7280)]">
-                Под каждую команду — свой набор. Например <b>geo</b> 3 колонки на телефоне,
-                а <b>stats</b> широкий со всеми семью.
+                Какие колонки бот показывает в нотификациях по кампаниям —
+                отдельно для сплитов и для MVT-разбивок. Порядок = порядок колонок.
             </p>
 
             <!-- Context tabs -->
@@ -318,10 +308,10 @@ const allMetrics = ref([]);
 // Honour ?context=geo (etc.) from deep-links — e.g. the "настроить метрики →"
 // link on the Топы screen jumps straight to the matching tab. Falls back to
 // 'stats' for unknown values so a bad query string can't break the screen.
-const KNOWN_CONTEXTS = ['stats', 'compare', 'geo', 'buyers', 'lp1', 'lp2', 'mvt', 'tracking'];
+const KNOWN_CONTEXTS = ['tracking', 'mvt'];
 const deepLinkContext = readContextFromHash();
 const cameFromDeepLink = deepLinkContext !== null && KNOWN_CONTEXTS.includes(deepLinkContext);
-const initialContext = cameFromDeepLink ? deepLinkContext : 'stats';
+const initialContext = cameFromDeepLink ? deepLinkContext : 'tracking';
 const activeContext = ref(initialContext);
 const metricsSection = ref(null);
 const picked = ref([]);
@@ -348,15 +338,12 @@ const periodOptions = [
     { value: 'month', label: 'Этот месяц' },
 ];
 
+// Campaign-first: only the two contexts the campaign pushes actually read.
+// The legacy ones (stats/compare/geo/buyers/lp1/lp2) still exist server-side
+// for the hidden screens — re-add a row here to resurface any of them.
 const contexts = [
-    { id: 'stats', label: 'stats', desc: 'Одиночный примитив — /stats DK, бот в чате' },
-    { id: 'compare', label: 'compare', desc: '/compare двух+ примитивов с Δ%' },
-    { id: 'geo', label: 'geo', desc: '/geo — топ стран' },
-    { id: 'buyers', label: 'buyers', desc: '/buyers — топ баеров' },
-    { id: 'lp1', label: 'lp1', desc: '/lps1 — топ лендингов на LP1' },
-    { id: 'lp2', label: 'lp2', desc: '/lps2 — топ лендингов на LP2' },
-    { id: 'mvt', label: 'mvt', desc: '/mvt — разбивка по вариантам ленда' },
-    { id: 'tracking', label: 'push', desc: '3h-пуш привязанных групп' },
+    { id: 'tracking', label: '🔀 сплиты', desc: 'Колонки в пушах по сплитам кампаний (compare-таблица с Δ%)' },
+    { id: 'mvt', label: '🧬 MVT', desc: 'Колонки в пушах по MVT-вариантам лендов' },
 ];
 
 const contextDescription = computed(() => contexts.find((c) => c.id === activeContext.value)?.desc ?? '');

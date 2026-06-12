@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Tracking;
 
+use App\Jobs\NotifyCampaignJob;
 use App\Jobs\NotifyCompareGroupJob;
 use App\Models\LandingSnapshot;
 use App\Models\TrackedLanding;
@@ -99,16 +100,30 @@ class SnapshotCommand extends Command
         $now = CarbonImmutable::now();
         $dispatched = 0;
         $skipped = 0;
+        $campaignsQueued = [];
         foreach ($groups as $g) {
             if (! $g->isDueForPush($now)) {
                 $skipped++;
 
                 continue;
             }
+
+            // Campaign children are pushed as ONE digest per campaign — queue
+            // the campaign once even if several of its children are due.
+            if ($g->campaign_subscription_id !== null) {
+                if (! isset($campaignsQueued[$g->campaign_subscription_id])) {
+                    $campaignsQueued[$g->campaign_subscription_id] = true;
+                    NotifyCampaignJob::dispatch((int) $g->user_id, (int) $g->campaign_subscription_id);
+                    $dispatched++;
+                }
+
+                continue;
+            }
+
             NotifyCompareGroupJob::dispatch((int) $g->user_id, (int) $g->id);
             $dispatched++;
         }
-        $this->info("Dispatched tracking-group jobs: {$dispatched} (skipped {$skipped} not due yet)");
+        $this->info("Dispatched push jobs: {$dispatched} (skipped {$skipped} not due yet)");
     }
 
     /** @return list<LandingSnapshot> */

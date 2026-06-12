@@ -38,7 +38,7 @@ final class MvtFormatter
      * @param  list<string>|null  $metricNames  override the displayed metric set
      * @param  array<string, string>  $labelOverrides  per-name custom labels
      */
-    public function format(array $report, ?array $metricNames = null, array $labelOverrides = []): string
+    public function format(array $report, ?array $metricNames = null, array $labelOverrides = [], bool $withHeader = true): string
     {
         $header = $this->header($report['landing'], $report['window']);
         $rows = $report['rows'];
@@ -55,7 +55,9 @@ final class MvtFormatter
 
         $shown = $metricNames !== null && $metricNames !== [] ? $metricNames : self::DEFAULT_METRICS;
 
-        $blocks = [$header];
+        // $withHeader=false for digest embedding — the campaign push prints its
+        // own section caption, no need to repeat landing + window here.
+        $blocks = $withHeader ? [$header] : [];
 
         // Sort rows by leads desc — leader on top.
         usort($rows, fn ($a, $b) => ($b['metrics']['Leads'] ?? 0) <=> ($a['metrics']['Leads'] ?? 0));

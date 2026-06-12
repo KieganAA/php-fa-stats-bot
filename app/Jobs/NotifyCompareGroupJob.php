@@ -4,11 +4,8 @@ namespace App\Jobs;
 
 use App\Models\User;
 use App\Models\UserCompareGroup;
-use App\Services\Stats\ComparisonReporter;
-use App\Services\Stats\MetricColumnResolver;
-use App\Services\Stats\MvtFormatter;
-use App\Services\Stats\MvtReporter;
 use App\Services\Stats\PeriodParser;
+use App\Services\Tracking\GroupReportRenderer;
 use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -20,14 +17,12 @@ use SergiX44\Nutgram\Nutgram;
 use Throwable;
 
 /**
- * Periodic 3h tracking-group push.
+ * Push for ONE standalone tracking group (legacy /bind-style subscriptions).
+ * Campaign-derived children go through NotifyCampaignJob instead, which packs
+ * a whole campaign's sections into a single digest message.
  *
- * Branches on group mode:
- *   - 'compare' → ComparisonReporter (same path as /compare)
- *   - 'mvt'     → MvtReporter (same path as /mvt)
- *
- * Both reporters live elsewhere; this job just wires them to Telegram delivery
- * + last_notified_at bookkeeping.
+ * Rendering is shared with the digest via GroupReportRenderer; this job just
+ * wires it to Telegram delivery + last_notified_at bookkeeping.
  */
 class NotifyCompareGroupJob implements ShouldQueue
 {
@@ -44,9 +39,7 @@ class NotifyCompareGroupJob implements ShouldQueue
 
     public function handle(
         Nutgram $bot,
-        ComparisonReporter $compare,
-        MvtReporter $mvt,
-        MvtFormatter $mvtFormatter,
+        GroupReportRenderer $renderer,
         PeriodParser $periods,
     ): void {
         $user = User::query()->find($this->userId);
@@ -72,23 +65,13 @@ class NotifyCompareGroupJob implements ShouldQueue
             return;
         }
 
-        // Campaign children scope their report to the owning campaign so a
-        // landing reused across campaigns doesn't pollute the numbers.
-        $campaignUuid = $group->campaignSubscription?->campaign_uuid;
-
         // Reports cover the whole current day in the user's timezone — the
         // interval only controls how OFTEN we push, not the window size.
         $window = $periods->parse('today', $user->timezone);
         $html = null;
 
         try {
-            $compareNames = $user->metricNamesFor(MetricColumnResolver::TRACKING);
-            $mvtNames = $user->metricNamesFor(MetricColumnResolver::MVT);
-            $labels = $user->metricLabelOverrides();
-            $html = match ($group->mode ?? UserCompareGroup::MODE_COMPARE) {
-                UserCompareGroup::MODE_MVT => $this->renderMvt($group, $window, $mvt, $mvtFormatter, $mvtNames, $labels, $campaignUuid),
-                default => $this->renderCompare($group, $window, $compare, $compareNames, $labels, $campaignUuid),
-            };
+            $html = $renderer->render($group, $user, $window);
         } catch (Throwable $e) {
             Log::warning('tracking-group notify failed', [
                 'user_id' => $this->userId,
@@ -124,49 +107,6 @@ class NotifyCompareGroupJob implements ShouldQueue
 
         $group->last_notified_at = CarbonImmutable::now();
         $group->save();
-    }
-
-    /**
-     * @param  list<string>|null  $metricNames
-     * @param  array<string, string>  $labelOverrides
-     */
-    private function renderCompare(UserCompareGroup $group, array $window, ComparisonReporter $compare, ?array $metricNames, array $labelOverrides, ?string $campaignUuid = null): ?string
-    {
-        $tokens = [];
-        $position = 1;
-        foreach ($group->members as $m) {
-            $landing = $m->trackedLanding?->landing;
-            if ($landing === null) {
-                continue;
-            }
-            // Split members all live on the same funnel step — querying the
-            // wrong position returns zero rows, so carry the tracked position.
-            $position = (int) ($m->trackedLanding->position ?? 1);
-            $tokens[] = $landing->human_id !== null ? (string) $landing->human_id : $landing->uuid;
-        }
-        if (count($tokens) < 2) {
-            return null; // compare requires ≥2
-        }
-
-        return $compare->report($tokens, $window, $metricNames, $labelOverrides, $campaignUuid, $position);
-    }
-
-    /**
-     * @param  list<string>|null  $metricNames
-     * @param  array<string, string>  $labelOverrides
-     */
-    private function renderMvt(UserCompareGroup $group, array $window, MvtReporter $mvt, MvtFormatter $fmt, ?array $metricNames, array $labelOverrides, ?string $campaignUuid = null): ?string
-    {
-        $member = $group->members->first();
-        $landing = $member?->trackedLanding?->landing;
-        if ($landing === null) {
-            return null;
-        }
-
-        $position = (int) ($member->trackedLanding->position ?? 1);
-        $report = $mvt->report($landing, $window, $position, $campaignUuid);
-
-        return $fmt->format($report, $metricNames, $labelOverrides);
     }
 
     private function escape(string $s): string

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Jobs\NotifyCompareGroupJob;
+use App\Jobs\NotifyCampaignJob;
 use App\Models\CampaignSubscription;
 use App\Models\UserCompareGroup;
 use App\Services\Auth\AppContext;
@@ -160,11 +160,11 @@ class CampaignsController
     }
 
     /**
-     * Debug helper: fire the campaign's notifications right now, skipping the
-     * interval schedule. Dispatches the same NotifyCompareGroupJob the cron
-     * tick uses, one per active (non-orphaned) child — so what arrives in the
-     * chat is exactly what a scheduled push would send. Updates
-     * last_notified_at as a side effect, which simply restarts the interval.
+     * Debug helper: fire the campaign's digest right now, skipping the
+     * schedule. Dispatches the same NotifyCampaignJob the cron tick uses —
+     * one message with a section per active split/MVT — so what arrives in
+     * the chat is exactly what a scheduled push would send. Updates
+     * last_notified_at as a side effect, which simply restarts the schedule.
      */
     public function push(AppContext $ctx, CampaignSubscription $campaign): JsonResponse
     {
@@ -186,13 +186,12 @@ class CampaignsController
             ], 422);
         }
 
-        foreach ($children as $child) {
-            NotifyCompareGroupJob::dispatch((int) $campaign->user_id, (int) $child->id);
-        }
+        NotifyCampaignJob::dispatch((int) $campaign->user_id, (int) $campaign->id);
 
         return response()->json([
             'ok' => true,
-            'dispatched' => $children->count(),
+            'dispatched' => 1,
+            'sections' => $children->count(),
             'children' => $children->pluck('name')->values()->all(),
         ]);
     }

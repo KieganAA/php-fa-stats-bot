@@ -147,13 +147,13 @@ final class CampaignManagementTest extends TestCase
         $this->assertTrue($child->isDueForPush(\Carbon\CarbonImmutable::parse('2026-06-13 16:30:00', 'UTC')));
     }
 
-    public function test_manual_push_dispatches_job_per_active_child(): void
+    public function test_manual_push_dispatches_one_campaign_digest_job(): void
     {
         \Illuminate\Support\Facades\Queue::fake();
         [$user, $headers] = $this->authedUser();
         $sub = $this->makeSubscription($user, ['step-1' => ['lp-a', 'lp-b'], 'step-2' => ['lp-c', 'lp-d']]);
 
-        // Orphan one child — it must NOT be pushed.
+        // Orphan one child — it must not count as a section.
         $orphan = $sub->children()->first();
         $orphan->orphaned_at = now();
         $orphan->save();
@@ -161,12 +161,14 @@ final class CampaignManagementTest extends TestCase
         $this->postJson("/api/ext/campaigns/{$sub->id}/push", [], $headers)
             ->assertStatus(200)
             ->assertJsonPath('ok', true)
-            ->assertJsonPath('dispatched', 1);
+            ->assertJsonPath('dispatched', 1)
+            ->assertJsonPath('sections', 1);
 
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\NotifyCompareGroupJob::class, 1);
+        // One digest job for the whole campaign, not one per child.
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\NotifyCampaignJob::class, 1);
         \Illuminate\Support\Facades\Queue::assertPushed(
-            \App\Jobs\NotifyCompareGroupJob::class,
-            fn ($job) => $job->groupId !== $orphan->id && $job->userId === $user->id,
+            \App\Jobs\NotifyCampaignJob::class,
+            fn ($job) => $job->campaignSubscriptionId === $sub->id && $job->userId === $user->id,
         );
     }
 

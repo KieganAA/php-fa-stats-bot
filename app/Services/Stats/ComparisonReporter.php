@@ -34,9 +34,12 @@ final class ComparisonReporter
      * @param  string|null  $campaignUuid  scope the comparison to one campaign
      * @param  int  $position  funnel slot for landing tokens (campaign splits
      *         pass their step position; LP1 by default). Ignored for countries.
-     * @return string  Telegram HTML
+     * @param  bool  $nullIfEmpty  return null instead of a dash-filled table
+     *         when the window has zero traffic (digest pushes collapse those)
+     * @param  bool  $withHeader  include the "compare — today (…)" line
+     * @return string|null  Telegram HTML
      */
-    public function report(array $tokens, array $window, ?array $metricNames = null, array $labelOverrides = [], ?string $campaignUuid = null, int $position = 1): string
+    public function report(array $tokens, array $window, ?array $metricNames = null, array $labelOverrides = [], ?string $campaignUuid = null, int $position = 1, bool $nullIfEmpty = false, bool $withHeader = true): ?string
     {
         if (count($tokens) < 2) {
             throw new RuntimeException('Нужно минимум 2 примитива для сравнения.');
@@ -74,6 +77,10 @@ final class ComparisonReporter
             $byValue[$value] = $this->targets->project($row['metrics'], $metricNames);
         }
 
+        if ($nullIfEmpty && $byValue === []) {
+            return null; // zero traffic in the window — caller renders a stub
+        }
+
         $entries = [];
         foreach ($resolved as $r) {
             $entries[] = [
@@ -82,6 +89,6 @@ final class ComparisonReporter
             ];
         }
 
-        return $this->formatter->format($window, $entries, $metricNames, $labelOverrides);
+        return $this->formatter->format($window, $entries, $metricNames, $labelOverrides, $withHeader);
     }
 }

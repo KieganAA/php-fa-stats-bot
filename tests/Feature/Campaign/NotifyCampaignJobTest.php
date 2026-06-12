@@ -1,0 +1,214 @@
+<?php
+
+namespace Tests\Feature\Campaign;
+
+use App\Jobs\NotifyCampaignJob;
+use App\Models\CampaignSubscription;
+use App\Models\User;
+use App\Services\Campaign\CampaignSubscriptionService;
+use App\Services\Stats\PeriodParser;
+use App\Services\Tracking\GroupReportRenderer;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Redis;
+use SergiX44\Nutgram\Nutgram;
+use Tests\TestCase;
+
+/**
+ * The campaign digest: one Telegram message per campaign per tick. Sections
+ * with traffic render tables; zero-traffic sections collapse to one line; a
+ * fully silent campaign shrinks to a single "нет трафика" one-liner. Either
+ * way last_notified_at advances so the schedule doesn't re-fire every tick.
+ */
+final class NotifyCampaignJobTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private const CAMPAIGN_UUID = '967815b9-6c7a-4bf9-8bbe-005f3d188ab2';
+
+    /** @var array<string, list<string>> */
+    private array $steps = [];
+
+    /** @var list<string> landing uuids whose pivot rows return traffic */
+    private array $trafficUuids = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('aio.base_url', 'https://app.aio.test');
+        config()->set('aio.token', 'test-token');
+        config()->set('aio.tenant_id', 'tenant-1');
+        config()->set('aio.cache.enabled', false);
+        config()->set('aio.limiter.max_wait_ms', 500);
+        config()->set('aio.limiter.retry_interval_ms', 20);
+        config()->set('aio.rate_limits.per_minute', 1000);
+
+        Redis::connection()->flushdb();
+        $this->seedTargetMetrics();
+
+        Http::fake([
+            'app.aio.test/api/v1/actions/data*' => function ($request) {
+                $body = json_decode($request->body(), true) ?: [];
+                if (($body['action'] ?? '') === 'Campaign\\Create') {
+                    return Http::response($this->campaignEnvelope($this->steps));
+                }
+
+                return Http::response($this->landerEnvelope($body['uuids'][0] ?? ''));
+            },
+            // Pivot: AIO returns a TREE that PivotWalker flattens — each child
+            // node carries group_* dimensions + metric scalars. Emit nodes only
+            // for landings flagged as having traffic.
+            'app.aio.test/api/v1/pivot-report/data*' => function ($request) {
+                $body = json_decode($request->body(), true) ?: [];
+                $values = collect($body['conditions'] ?? [])
+                    ->flatMap(fn ($c) => $c['values'] ?? [])
+                    ->all();
+                $tree = [];
+                foreach ($values as $uuid) {
+                    if (in_array($uuid, $this->trafficUuids, true)) {
+                        $tree[] = ['group_0' => $uuid, 'clicks-uuid' => 100];
+                    }
+                }
+
+                return Http::response($tree);
+            },
+        ]);
+    }
+
+    public function test_digest_is_one_message_with_empty_sections_collapsed(): void
+    {
+        // Two splits: step-1 has traffic, step-2 doesn't.
+        $this->steps = ['step-1' => ['lp-a', 'lp-b'], 'step-2' => ['lp-c', 'lp-d']];
+        $this->trafficUuids = ['lp-a', 'lp-b'];
+        [$user, $sub] = $this->subscribe();
+
+        $bot = Nutgram::fake();
+        (new NotifyCampaignJob($user->id, $sub->id))
+            ->handle($bot, app(GroupReportRenderer::class), app(PeriodParser::class));
+
+        $bot->assertCalled('sendMessage', 1); // ONE digest, not per-child spam
+        $bot->assertRaw(function ($request) {
+            $text = self::messageText($request);
+
+            return str_contains($text, 'шаг 1 сплит')      // section with table
+                && str_contains($text, '#8001')             // landing column
+                && str_contains($text, '😴')                 // collapsed section
+                && str_contains($text, 'шаг 2 сплит');
+        });
+
+        foreach ($sub->children()->get() as $child) {
+            $this->assertNotNull($child->last_notified_at, 'every child stamped');
+        }
+    }
+
+    public function test_fully_silent_campaign_sends_short_one_liner(): void
+    {
+        $this->steps = ['step-1' => ['lp-a', 'lp-b']];
+        $this->trafficUuids = []; // no traffic anywhere
+        [$user, $sub] = $this->subscribe();
+
+        $bot = Nutgram::fake();
+        (new NotifyCampaignJob($user->id, $sub->id))
+            ->handle($bot, app(GroupReportRenderer::class), app(PeriodParser::class));
+
+        $bot->assertCalled('sendMessage', 1);
+        $bot->assertRaw(function ($request) {
+            $text = self::messageText($request);
+
+            return str_contains($text, '😴')
+                && str_contains($text, 'нет трафика')
+                && ! str_contains($text, 'clicks'); // no dash table
+        });
+
+        $this->assertNotNull($sub->children()->first()->last_notified_at);
+    }
+
+    // ===== helpers =====
+
+    /** Extract the `text` field from a captured Telegram API PSR request. */
+    private static function messageText(\Psr\Http\Message\RequestInterface $request): string
+    {
+        $body = (string) $request->getBody();
+        $json = json_decode($body, true);
+        if (is_array($json) && isset($json['text'])) {
+            return (string) $json['text'];
+        }
+        // Multipart fallback — match on the raw body.
+        return $body;
+    }
+
+    /** @return array{0: User, 1: CampaignSubscription} */
+    private function subscribe(): array
+    {
+        $user = User::query()->create([
+            'telegram_user_id' => 424692210,
+            'telegram_username' => 'owner',
+            'timezone' => 'Europe/Moscow',
+        ]);
+        app(CampaignSubscriptionService::class)->create($user, self::CAMPAIGN_UUID);
+        $sub = CampaignSubscription::query()
+            ->where('campaign_uuid', self::CAMPAIGN_UUID)->firstOrFail();
+
+        return [$user, $sub];
+    }
+
+    /** @param  array<string, list<string>>  $steps */
+    private function campaignEnvelope(array $steps): array
+    {
+        $settings = [];
+        foreach ($steps as $stepUuid => $landingUuids) {
+            $items = [];
+            foreach ($landingUuids as $lu) {
+                $items[] = ['payload' => [
+                    'type' => 'Landing', 'uuid' => 'item-'.$lu, 'content' => $lu, 'isActive' => true,
+                ]];
+            }
+            $settings[$stepUuid] = ['payload' => ['items' => $items]];
+        }
+
+        return [
+            'fields' => [
+                ['name' => 'name', 'value' => 'Digest Campaign'],
+                ['name' => 'human_id', 'value' => 116400],
+                ['name' => 'countries', 'value' => ['CA']],
+                ['name' => 'settings', 'value' => json_encode($settings)],
+            ],
+            'data' => [], 'primary' => null, 'logs' => [],
+        ];
+    }
+
+    private function landerEnvelope(string $uuid): array
+    {
+        // Stable per-uuid human_id so PrimitiveResolver can resolve tokens:
+        // lp-a → 8001, lp-b → 8002 … (catalog backfill stores them).
+        static $ids = [];
+        if (! isset($ids[$uuid])) {
+            $ids[$uuid] = 8000 + count($ids) + 1;
+        }
+
+        return [
+            'fields' => [
+                ['name' => 'name', 'value' => 'lander '.$uuid],
+                ['name' => 'human_id', 'value' => $ids[$uuid]],
+                ['name' => 'mvt_settings', 'value' => '[]'],
+            ],
+            'data' => [], 'primary' => null, 'logs' => [],
+        ];
+    }
+
+    private function seedTargetMetrics(): void
+    {
+        foreach ([
+            'clicks-uuid' => 'Q Visits',
+            'leads-uuid' => 'Leads',
+            'ftds-real-uuid' => 'Total FTDs',
+            'real-cr-uuid' => 'Real Approve',
+        ] as $uuid => $name) {
+            \App\Models\Aio\Metric::query()->updateOrCreate(
+                ['uuid' => $uuid],
+                ['name' => $name, 'raw' => [], 'synced_at' => now()],
+            );
+        }
+    }
+}

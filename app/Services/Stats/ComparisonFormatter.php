@@ -23,17 +23,18 @@ final class ComparisonFormatter
      * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
      * @param  array<string, string>  $labelOverrides
      */
-    public function format(array $period, array $entries, ?array $metricNames = null, array $labelOverrides = []): string
+    public function format(array $period, array $entries, ?array $metricNames = null, array $labelOverrides = [], bool $withHeader = true): string
     {
         if (count($entries) < 2) {
             return $this->header($period)."\n\n<i>Compare нуждается минимум в 2 примитивах.</i>";
         }
 
         $names = $metricNames ?? MetricDisplay::defaultNames();
-        $header = $this->header($period);
         $body = $this->table($entries, $names, $labelOverrides);
 
-        return $header."\n\n".$body;
+        // $withHeader=false for digest embedding — the campaign push prints one
+        // shared window line up top instead of repeating it per section.
+        return $withHeader ? $this->header($period)."\n\n".$body : $body;
     }
 
     /** @param  array{from: CarbonInterface, to: CarbonInterface, timezone: string, label: string}  $period */

@@ -40,8 +40,17 @@ echo "==> rebuild caches"
 "${COMPOSE[@]}" exec -T app php artisan route:cache
 "${COMPOSE[@]}" exec -T app php artisan event:cache
 
-echo "==> reload octane workers"
+echo "==> reload octane (HTTP app)"
 "${COMPOSE[@]}" exec -T app php artisan octane:reload || true
+
+# octane:reload only refreshes the HTTP app. The queue worker and scheduler are
+# separate long-lived processes that cache code in memory — without cycling them
+# they keep running the OLD code after a deploy (e.g. a stale report window).
+# queue:restart tells queue:work to exit after its current job; restart-policy
+# revives both containers with fresh code.
+echo "==> cycle worker + scheduler (pick up new code)"
+"${COMPOSE[@]}" exec -T app php artisan queue:restart || true
+"${COMPOSE[@]}" restart worker scheduler
 
 echo "==> health"
 sleep 2

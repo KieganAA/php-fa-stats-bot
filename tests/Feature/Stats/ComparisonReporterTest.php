@@ -48,6 +48,33 @@ class ComparisonReporterTest extends TestCase
         $this->assertStringContainsString('+300.0%', $html);
     }
 
+    public function test_landing_position_threads_into_filter_key(): void
+    {
+        // Regression: campaign splits on a non-LP1 step must query
+        // landing_uuids[N], not [1] — otherwise the pivot returns zero rows.
+        $this->seedTargetMetrics();
+        $this->seedLanding(33169, 'NO', 'Celeb Preland', 'zigi');
+        $this->seedLanding(205215, 'IT', 'White 2.0', 'Cloak', uuid: 'uuid-205215');
+
+        $reports = Mockery::mock(LandingReports::class);
+        $reports->shouldReceive('compareByPrimitive')
+            ->once()
+            ->withArgs(fn (string $key, array $vals) => $key === 'landing_uuids[2]' && $vals === ['uuid-33169', 'uuid-205215'])
+            ->andReturn(new PivotResponse(
+                rows: [
+                    ['dimensions' => ['group_0' => 'uuid-33169'], 'metrics' => ['clicks-uuid' => 10]],
+                    ['dimensions' => ['group_0' => 'uuid-205215'], 'metrics' => ['clicks-uuid' => 20]],
+                ],
+                raw: [],
+            ));
+        $this->app->instance(LandingReports::class, $reports);
+
+        $window = app(PeriodParser::class)->parse('today');
+        $html = app(ComparisonReporter::class)->report(['33169', '205215'], $window, null, [], null, 2);
+
+        $this->assertStringContainsString('#33169', $html);
+    }
+
     public function test_compares_two_countries(): void
     {
         $this->seedTargetMetrics();

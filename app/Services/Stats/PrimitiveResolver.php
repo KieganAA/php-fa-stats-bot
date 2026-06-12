@@ -34,7 +34,14 @@ final class PrimitiveResolver
         private readonly LandingFormatter $landings,
     ) {}
 
-    public function resolve(string $token): array
+    /**
+     * @param  int  $landingPosition  funnel slot (landing_uuids[N]) to filter
+     *         landings on. Defaults to LP1; campaign splits pass their step
+     *         position so a step-2 split queries landing_uuids[2], not [1]
+     *         (otherwise the pivot matches nothing and the report is all zeros).
+     *         Ignored for country tokens.
+     */
+    public function resolve(string $token, int $landingPosition = 1): array
     {
         $token = trim($token);
         if ($token === '') {
@@ -51,7 +58,7 @@ final class PrimitiveResolver
                 throw new RuntimeException("Лендинг #{$token} не найден в локальной БД. Возможно нужен пересинк (artisan aio:sync:landings).");
             }
 
-            return $this->landingShape($landing);
+            return $this->landingShape($landing, $landingPosition);
         }
 
         if ($this->looksLikeUuid($token)) {
@@ -60,7 +67,7 @@ final class PrimitiveResolver
                 throw new RuntimeException("Лендинг с uuid {$token} не найден.");
             }
 
-            return $this->landingShape($landing);
+            return $this->landingShape($landing, $landingPosition);
         }
 
         throw new RuntimeException(

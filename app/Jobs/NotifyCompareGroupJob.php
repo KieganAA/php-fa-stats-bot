@@ -133,18 +133,22 @@ class NotifyCompareGroupJob implements ShouldQueue
     private function renderCompare(UserCompareGroup $group, array $window, ComparisonReporter $compare, ?array $metricNames, array $labelOverrides, ?string $campaignUuid = null): ?string
     {
         $tokens = [];
+        $position = 1;
         foreach ($group->members as $m) {
             $landing = $m->trackedLanding?->landing;
             if ($landing === null) {
                 continue;
             }
+            // Split members all live on the same funnel step — querying the
+            // wrong position returns zero rows, so carry the tracked position.
+            $position = (int) ($m->trackedLanding->position ?? 1);
             $tokens[] = $landing->human_id !== null ? (string) $landing->human_id : $landing->uuid;
         }
         if (count($tokens) < 2) {
             return null; // compare requires ≥2
         }
 
-        return $compare->report($tokens, $window, $metricNames, $labelOverrides, $campaignUuid);
+        return $compare->report($tokens, $window, $metricNames, $labelOverrides, $campaignUuid, $position);
     }
 
     /**

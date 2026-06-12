@@ -32,15 +32,17 @@ final class ComparisonReporter
      * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
      * @param  array<string, string>  $labelOverrides  per-name display labels
      * @param  string|null  $campaignUuid  scope the comparison to one campaign
+     * @param  int  $position  funnel slot for landing tokens (campaign splits
+     *         pass their step position; LP1 by default). Ignored for countries.
      * @return string  Telegram HTML
      */
-    public function report(array $tokens, array $window, ?array $metricNames = null, array $labelOverrides = [], ?string $campaignUuid = null): string
+    public function report(array $tokens, array $window, ?array $metricNames = null, array $labelOverrides = [], ?string $campaignUuid = null, int $position = 1): string
     {
         if (count($tokens) < 2) {
             throw new RuntimeException('Нужно минимум 2 примитива для сравнения.');
         }
 
-        $resolved = array_map(fn (string $t) => $this->resolver->resolve($t), $tokens);
+        $resolved = array_map(fn (string $t) => $this->resolver->resolve($t, $position), $tokens);
 
         // All primitives must share the same dimension key — otherwise it's
         // not a side-by-side, it's apples vs oranges.

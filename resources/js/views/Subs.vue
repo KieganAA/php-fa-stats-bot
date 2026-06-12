@@ -54,6 +54,7 @@
                         <div class="text-xs text-[var(--tg-theme-hint-color,#6b7280)] truncate">{{ c.name }}</div>
                     </div>
                     <div class="flex gap-1 shrink-0">
+                        <button class="text-sm px-1.5 py-1 rounded disabled:opacity-40" title="Пушнуть отчёты сейчас (debug)" :disabled="busyId === c.id || c.paused" @click="pushNow(c)">📤</button>
                         <button class="text-sm px-1.5 py-1 rounded" :title="c.paused ? 'Возобновить' : 'Пауза'" @click="togglePause(c)">{{ c.paused ? '▶️' : '⏸' }}</button>
                         <button class="text-sm px-1.5 py-1 rounded disabled:opacity-40" title="Пересобрать (resync)" :disabled="busyId === c.id" @click="resync(c)">🔄</button>
                         <button class="text-sm px-1.5 py-1 rounded text-red-500" title="Удалить" @click="confirmDelete(c)">🗑</button>
@@ -175,6 +176,19 @@ async function setInterval(c, minutes) {
         hapticImpact('light');
     } catch (e) {
         showAlert(e.message);
+    }
+}
+
+async function pushNow(c) {
+    busyId.value = c.id;
+    try {
+        const r = await api.pushCampaign(c.id);
+        hapticImpact('light');
+        await showAlert(`📤 ${c.label}: отправляю ${r.dispatched} отчёт(а) — смотри чат с ботом.`);
+    } catch (e) {
+        showAlert(e.message);
+    } finally {
+        busyId.value = null;
     }
 }
 

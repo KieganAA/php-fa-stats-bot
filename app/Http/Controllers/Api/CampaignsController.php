@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Jobs\NotifyCompareGroupJob;
 use App\Models\CampaignSubscription;
 use App\Models\UserCompareGroup;
 use App\Services\Auth\AppContext;
@@ -128,6 +129,44 @@ class CampaignsController
             'ok' => true,
             'campaign' => $this->serialize($campaign->fresh(['children.members.trackedLanding.landing'])),
             'changed' => $this->changed($result),
+        ]);
+    }
+
+    /**
+     * Debug helper: fire the campaign's notifications right now, skipping the
+     * interval schedule. Dispatches the same NotifyCompareGroupJob the cron
+     * tick uses, one per active (non-orphaned) child — so what arrives in the
+     * chat is exactly what a scheduled push would send. Updates
+     * last_notified_at as a side effect, which simply restarts the interval.
+     */
+    public function push(AppContext $ctx, CampaignSubscription $campaign): JsonResponse
+    {
+        if (! $this->owns($ctx, $campaign)) {
+            return response()->json(['error' => 'not yours'], 403);
+        }
+        if ($campaign->paused_at !== null) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Кампания на паузе — пуши заблокированы. Сними паузу (▶️) и попробуй снова.',
+            ], 422);
+        }
+
+        $children = $campaign->children()->whereNull('orphaned_at')->get();
+        if ($children->isEmpty()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Нет активных сплитов/MVT — нечего пушить.',
+            ], 422);
+        }
+
+        foreach ($children as $child) {
+            NotifyCompareGroupJob::dispatch((int) $campaign->user_id, (int) $child->id);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'dispatched' => $children->count(),
+            'children' => $children->pluck('name')->values()->all(),
         ]);
     }
 

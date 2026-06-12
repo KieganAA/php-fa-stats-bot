@@ -86,6 +86,7 @@ function renderCampaigns() {
                     <span class="cname">${escapeHtml(c.name || '')}</span>
                 </div>
                 <div class="camp-actions">
+                    <button class="act push" title="Пушнуть отчёты сейчас (debug)" ${c.paused ? 'disabled' : ''}>📤</button>
                     <button class="act pause" title="${c.paused ? 'Возобновить' : 'Пауза'}">${c.paused ? '▶️' : '⏸'}</button>
                     <button class="act resync" title="Пересобрать структуру (resync)">🔄</button>
                     <button class="act del" title="Удалить подписку">🗑</button>
@@ -110,12 +111,21 @@ function renderCampaigns() {
     box.querySelectorAll('.camp').forEach((node) => {
         const id = parseInt(node.dataset.id, 10);
         const c = state.campaigns.find((x) => x.id === id);
+        node.querySelector('.push')?.addEventListener('click', () => pushNow(c, node));
         node.querySelector('.pause')?.addEventListener('click', () => togglePause(c, node));
         node.querySelector('.resync')?.addEventListener('click', () => resync(c, node));
         node.querySelector('.del')?.addEventListener('click', () => remove(c));
         node.querySelector('.interval-sel')?.addEventListener('change', (e) =>
             setInterval(c, parseInt(e.target.value, 10), node));
     });
+}
+
+async function pushNow(c, node) {
+    await guard(node, async () => {
+        const r = await api.pushCampaign(c.id);
+        renderCampaigns();
+        flashCard(c.id, `📤 Отправляю ${r.dispatched} отчёт(а) — смотри чат с ботом`, false);
+    }, 'Отправляю…');
 }
 
 async function togglePause(c, node) {

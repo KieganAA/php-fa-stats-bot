@@ -102,6 +102,44 @@ final class CampaignManagementTest extends TestCase
             ->assertJsonPath('campaign.orphans', 1);
     }
 
+    public function test_manual_push_dispatches_job_per_active_child(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        [$user, $headers] = $this->authedUser();
+        $sub = $this->makeSubscription($user, ['step-1' => ['lp-a', 'lp-b'], 'step-2' => ['lp-c', 'lp-d']]);
+
+        // Orphan one child — it must NOT be pushed.
+        $orphan = $sub->children()->first();
+        $orphan->orphaned_at = now();
+        $orphan->save();
+
+        $this->postJson("/api/ext/campaigns/{$sub->id}/push", [], $headers)
+            ->assertStatus(200)
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('dispatched', 1);
+
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\NotifyCompareGroupJob::class, 1);
+        \Illuminate\Support\Facades\Queue::assertPushed(
+            \App\Jobs\NotifyCompareGroupJob::class,
+            fn ($job) => $job->groupId !== $orphan->id && $job->userId === $user->id,
+        );
+    }
+
+    public function test_manual_push_rejected_when_campaign_paused(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        [$user, $headers] = $this->authedUser();
+        $sub = $this->makeSubscription($user, ['step-1' => ['lp-a', 'lp-b']]);
+        $sub->paused_at = now();
+        $sub->save();
+
+        $this->postJson("/api/ext/campaigns/{$sub->id}/push", [], $headers)
+            ->assertStatus(422)
+            ->assertJsonPath('ok', false);
+
+        \Illuminate\Support\Facades\Queue::assertNothingPushed();
+    }
+
     public function test_destroy_removes_subscription_and_children(): void
     {
         [$user, $headers] = $this->authedUser();

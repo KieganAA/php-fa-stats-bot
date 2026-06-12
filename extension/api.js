@@ -92,5 +92,6 @@ export const api = {
     listCampaigns: () => request('GET', '/campaigns'),
     updateCampaign: (id, body) => request('PATCH', `/campaigns/${id}`, { body }),
     resyncCampaign: (id) => request('POST', `/campaigns/${id}/resync`),
+    pushCampaign: (id) => request('POST', `/campaigns/${id}/push`),
     deleteCampaign: (id) => request('DELETE', `/campaigns/${id}`),
 };

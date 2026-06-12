@@ -72,6 +72,7 @@ export const api = {
     subscribeCampaign: (campaign) => request('POST', '/campaigns', { body: { campaign } }),
     updateCampaign: (id, body) => request('PATCH', `/campaigns/${id}`, { body }),
     resyncCampaign: (id) => request('POST', `/campaigns/${id}/resync`),
+    pushCampaign: (id) => request('POST', `/campaigns/${id}/push`),
     deleteCampaign: (id) => request('DELETE', `/campaigns/${id}`),
 
     // Legacy landing subscriptions (server calls them "groups"). Kept for the

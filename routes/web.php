@@ -71,6 +71,7 @@ Route::middleware(VerifyExtensionToken::class)
         Route::post('campaign', [ExtensionController::class, 'subscribeCampaign']);
         Route::patch('campaigns/{campaign}', [ExtensionController::class, 'updateCampaign']);
         Route::post('campaigns/{campaign}/resync', [ExtensionController::class, 'resyncCampaign']);
+        Route::post('campaigns/{campaign}/push', [ExtensionController::class, 'pushCampaign']);
         Route::delete('campaigns/{campaign}', [ExtensionController::class, 'destroyCampaign']);
     });
 
@@ -108,5 +109,6 @@ Route::middleware(VerifyTelegramInitData::class)
         Route::post('campaigns', [CampaignsController::class, 'store']);
         Route::patch('campaigns/{campaign}', [CampaignsController::class, 'update']);
         Route::post('campaigns/{campaign}/resync', [CampaignsController::class, 'resync']);
+        Route::post('campaigns/{campaign}/push', [CampaignsController::class, 'push']);
         Route::delete('campaigns/{campaign}', [CampaignsController::class, 'destroy']);
     });

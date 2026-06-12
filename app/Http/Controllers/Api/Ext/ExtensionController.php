@@ -171,6 +171,12 @@ class ExtensionController
         return $delegate->resync($ctx, $service, $campaign);
     }
 
+    /** POST /api/ext/campaigns/{campaign}/push — debug: fire notifications now. */
+    public function pushCampaign(AppContext $ctx, CampaignsController $delegate, CampaignSubscription $campaign): JsonResponse
+    {
+        return $delegate->push($ctx, $campaign);
+    }
+
     /** DELETE /api/ext/campaigns/{campaign} — drop the subscription. */
     public function destroyCampaign(AppContext $ctx, CampaignsController $delegate, CompareGroupUnbinder $unbinder, CampaignSubscription $campaign): JsonResponse
     {

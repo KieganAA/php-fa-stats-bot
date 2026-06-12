@@ -1,5 +1,39 @@
 # Deploy
 
+## Production (current setup)
+
+Live since 2026-06-12 on `root@164.92.219.14` (DigitalOcean, 2 GB / 2 vCPU), domain `dicta-voluptatem-voluptatem.top` proxied through Cloudflare.
+
+**⚠️ The box is shared.** It also runs **aio-support-brain** (its nginx owns port :80, compose project in `/var/www/aio-support-brain`) and a host mysqld on :3306. Never touch those. Everything fa-stats-bot is scoped to the `fa-stats-bot` compose project in `/opt/fa-stats-bot` and publishes **only port 443**.
+
+| Piece | Value |
+|---|---|
+| Checkout | `/opt/fa-stats-bot` (git, deploy key `~/.ssh/fa_stats_bot`, host alias `github.com-fa-stats`) |
+| Compose | `docker-compose.prod.yml` — app/worker/scheduler + postgres + redis + **caddy:443** |
+| TLS | Caddy `tls internal` (self-signed); Cloudflare zone SSL mode **Full** (not strict). ACME is impossible — :80 belongs to the neighbour. |
+| Assets | `public/build` is **committed** (no Node on the box) — run `make assets` after touching `resources/` |
+| RAM | 2 GB + 2 GB swapfile (`/swapfile`); per-container `mem_limit` in compose |
+
+**Day-to-day deploy from your machine:**
+
+```bash
+make deploy        # = make assets (vite build + commit if changed) → git push → server: scripts/deploy.sh
+make logs          # tail prod app/worker/scheduler
+make status        # containers + /health
+```
+
+`scripts/deploy.sh` (runs on the server, idempotent): git pull → re-exec fresh copy → chown for uid 1000 → composer install → migrate → up -d → config/route/event:cache → octane:reload → health check.
+
+One-off commands on prod:
+
+```bash
+ssh root@164.92.219.14 'cd /opt/fa-stats-bot && docker compose -f docker-compose.prod.yml exec app php artisan <cmd>'
+```
+
+---
+
+## Generic guide
+
 Generic Docker-Compose-on-VPS guide. The same image runs locally and in production — the only differences are env vars, the host that terminates TLS, and the webhook URL registered with Telegram.
 
 ## 1. Prerequisites

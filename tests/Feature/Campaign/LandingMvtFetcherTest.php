@@ -2,13 +2,17 @@
 
 namespace Tests\Feature\Campaign;
 
+use App\Models\Aio\Landing;
 use App\Services\Campaign\LandingMvtFetcher;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Redis;
 use Tests\TestCase;
 
 final class LandingMvtFetcherTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -89,5 +93,56 @@ final class LandingMvtFetcherTest extends TestCase
         $this->assertSame(['img-1.webp', 'img-2.webp'], $info->fields[1]->variants);
         // Only the second field qualifies — but one is enough.
         $this->assertTrue($info->hasMvt());
+    }
+
+    public function test_fetch_backfills_missing_landing_into_catalog(): void
+    {
+        Http::fake([
+            'app.aio.test/api/v1/actions/data*' => Http::response([
+                'fields' => [
+                    ['name' => 'name', 'value' => 'ES es | ImChat'],
+                    ['name' => 'human_id', 'value' => 8708],
+                    ['name' => 'countries', 'value' => ['ES']],
+                    ['name' => 'lander_type_uuid', 'value' => 'lt-1'],
+                    ['name' => 'mvt_settings', 'value' => '[]'],
+                ],
+                'data' => [], 'primary' => null, 'logs' => [],
+            ]),
+        ]);
+
+        $this->app->make(LandingMvtFetcher::class)->fetch('lp-new');
+
+        $row = Landing::query()->where('uuid', 'lp-new')->first();
+        $this->assertNotNull($row, 'landing backfilled into catalog');
+        $this->assertSame(8708, $row->human_id);
+        $this->assertSame('ES es | ImChat', $row->name);
+        $this->assertSame(['ES'], $row->countries);
+    }
+
+    public function test_fetch_does_not_overwrite_existing_catalog_row(): void
+    {
+        Landing::query()->create([
+            'uuid' => 'lp-rich', 'human_id' => 555, 'name' => 'Rich row from bulk sync',
+            'landing_type_uuid' => 'lt', 'landing_type_name' => 'White',
+            'owner_uuid' => 'o', 'owner_name' => 'owner',
+            'countries' => ['NO'], 'is_archived' => false, 'raw' => [], 'synced_at' => now(),
+        ]);
+
+        Http::fake([
+            'app.aio.test/api/v1/actions/data*' => Http::response([
+                'fields' => [
+                    ['name' => 'name', 'value' => 'thin overwrite attempt'],
+                    ['name' => 'human_id', 'value' => 999],
+                    ['name' => 'mvt_settings', 'value' => '[]'],
+                ],
+                'data' => [], 'primary' => null, 'logs' => [],
+            ]),
+        ]);
+
+        $this->app->make(LandingMvtFetcher::class)->fetch('lp-rich');
+
+        $row = Landing::query()->where('uuid', 'lp-rich')->firstOrFail();
+        $this->assertSame(555, $row->human_id);
+        $this->assertSame('Rich row from bulk sync', $row->name);
     }
 }

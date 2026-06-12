@@ -76,7 +76,9 @@ class NotifyCompareGroupJob implements ShouldQueue
         // landing reused across campaigns doesn't pollute the numbers.
         $campaignUuid = $group->campaignSubscription?->campaign_uuid;
 
-        $window = $periods->parse('3h', $user->timezone);
+        // Reports cover the whole current day in the user's timezone — the
+        // interval only controls how OFTEN we push, not the window size.
+        $window = $periods->parse('today', $user->timezone);
         $html = null;
 
         try {
@@ -98,6 +100,17 @@ class NotifyCompareGroupJob implements ShouldQueue
         }
 
         if ($html === null) {
+            // Renderers bail (null) when members can't be resolved through the
+            // local landing catalog. Loud log — a silent "DONE" here cost us a
+            // mute-push debugging session once already.
+            Log::warning('tracking-group notify skipped: members unresolved', [
+                'group_id' => $this->groupId,
+                'mode' => $group->mode,
+                'member_uuids' => $group->members->map(
+                    fn ($m) => $m->trackedLanding?->landing_uuid,
+                )->all(),
+            ]);
+
             return;
         }
 

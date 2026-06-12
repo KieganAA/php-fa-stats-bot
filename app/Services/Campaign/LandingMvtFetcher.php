@@ -2,10 +2,13 @@
 
 namespace App\Services\Campaign;
 
+use App\Models\Aio\Landing;
 use App\Services\Aio\AioClient;
 use App\Services\Aio\Dto\LandingMvtInfo;
 use App\Services\Aio\Dto\MvtField;
+use Carbon\CarbonImmutable;
 use RuntimeException;
+use Throwable;
 
 /**
  * Fetches the `mvt_settings` of one or more landings via AIO's
@@ -16,6 +19,12 @@ use RuntimeException;
  * `data` or `primary`). To stay robust we call one landing at a time — the
  * action endpoint is cached on AIO's side for short windows, so the
  * per-request overhead is small.
+ *
+ * Side effect: each fetch also backfills the landing into the local
+ * `aio_landings` catalog if it's missing there (see ensureInCatalog). Push
+ * rendering resolves landings through that catalog, and the hourly bulk sync
+ * can lag behind (AIO rate limits) — without the backfill, a freshly
+ * subscribed campaign whose landings haven't synced yet pushes nothing.
  */
 final class LandingMvtFetcher
 {
@@ -26,6 +35,7 @@ final class LandingMvtFetcher
         $response = $this->aio->runLanderCreateAction([$landingUuid]);
 
         $fields = $this->fieldMap($response);
+        $this->ensureInCatalog($landingUuid, $fields);
         $rawSettings = $fields['mvt_settings'] ?? null;
 
         // No mvt_settings at all (or empty string) → landing simply isn't MVT.
@@ -95,6 +105,43 @@ final class LandingMvtFetcher
         }
 
         return $out;
+    }
+
+    /**
+     * Backfill the landing into the local catalog when the bulk sync hasn't
+     * reached it yet. firstOrCreate on purpose: the hourly sync's rows are
+     * richer (owner, type name, archive flag) — never overwrite them with this
+     * thinner identity; we only plug holes so pushes can resolve the landing.
+     *
+     * Never throws — a catalog miss here must not break the subscribe flow.
+     *
+     * @param  array<string, mixed>  $fields
+     */
+    private function ensureInCatalog(string $landingUuid, array $fields): void
+    {
+        try {
+            $name = $fields['name'] ?? null;
+            if (! is_string($name) || $name === '') {
+                return; // not enough identity to be useful
+            }
+
+            $humanId = $fields['human_id'] ?? null;
+            $countries = $fields['countries'] ?? [];
+
+            Landing::query()->firstOrCreate(
+                ['uuid' => $landingUuid],
+                [
+                    'name' => mb_substr($name, 0, 500),
+                    'human_id' => is_numeric($humanId) ? (int) $humanId : null,
+                    'landing_type_uuid' => is_string($fields['lander_type_uuid'] ?? null) ? $fields['lander_type_uuid'] : null,
+                    'countries' => is_array($countries) ? array_values(array_filter($countries, 'is_string')) : [],
+                    'raw' => ['backfilled_from' => 'Lander\\Create'],
+                    'synced_at' => CarbonImmutable::now(),
+                ],
+            );
+        } catch (Throwable) {
+            // Catalog backfill is best-effort; MVT detection must proceed.
+        }
     }
 
     /** @return array<string, mixed> */

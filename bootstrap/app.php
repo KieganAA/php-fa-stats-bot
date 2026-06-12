@@ -12,8 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // CSRF guards cookie-session forms; these three surfaces are stateless
+        // APIs with their own auth (webhook secret header, extension Bearer
+        // token, Mini App initData HMAC) — cookie CSRF just 419s them.
         $middleware->validateCsrfTokens(except: [
             'telegram/webhook',
+            'api/ext/*',
+            'api/v1/*',
         ]);
 
         // Trust upstream proxies (ngrok in dev, FrankenPHP-front-of-Caddy or

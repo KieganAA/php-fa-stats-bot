@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CompareController;
 use App\Http\Controllers\Api\Ext\ExtensionController;
+use App\Http\Controllers\Api\CampaignsController;
 use App\Http\Controllers\Api\GroupsController;
 use App\Http\Controllers\Api\LandingsController;
 use App\Http\Controllers\Api\MeController;
@@ -64,6 +65,13 @@ Route::middleware(VerifyExtensionToken::class)
         Route::delete('groups/{group}', [ExtensionController::class, 'destroyGroup']);
         Route::get('landings', [ExtensionController::class, 'landings']);
         Route::post('resolve', [ExtensionController::class, 'resolve']);
+
+        // Campaign subscriptions — the extension's primary surface.
+        Route::get('campaigns', [ExtensionController::class, 'campaigns']);
+        Route::post('campaign', [ExtensionController::class, 'subscribeCampaign']);
+        Route::patch('campaigns/{campaign}', [ExtensionController::class, 'updateCampaign']);
+        Route::post('campaigns/{campaign}/resync', [ExtensionController::class, 'resyncCampaign']);
+        Route::delete('campaigns/{campaign}', [ExtensionController::class, 'destroyCampaign']);
     });
 
 // Mini App JSON API. Every request must carry verified initData.
@@ -89,9 +97,16 @@ Route::middleware(VerifyTelegramInitData::class)
         Route::get('rankings', [RankingsController::class, 'show']);
         Route::get('mvt', [MvtController::class, 'show']);
 
-        // Persistent tracking groups
+        // Persistent tracking groups (legacy landing subscriptions)
         Route::get('groups', [GroupsController::class, 'index']);
         Route::post('groups', [GroupsController::class, 'store']);
         Route::patch('groups/{group}', [GroupsController::class, 'update']);
         Route::delete('groups/{group}', [GroupsController::class, 'destroy']);
+
+        // Campaign subscriptions — the Mini App's primary surface.
+        Route::get('campaigns', [CampaignsController::class, 'index']);
+        Route::post('campaigns', [CampaignsController::class, 'store']);
+        Route::patch('campaigns/{campaign}', [CampaignsController::class, 'update']);
+        Route::post('campaigns/{campaign}/resync', [CampaignsController::class, 'resync']);
+        Route::delete('campaigns/{campaign}', [CampaignsController::class, 'destroy']);
     });

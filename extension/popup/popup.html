@@ -8,13 +8,13 @@
 <body>
     <main id="root">
         <header class="header">
-            <strong>bot-stats</strong>
+            <strong>🔔 bot-stats</strong>
             <button id="open-options" class="link" title="Настройки">⚙️</button>
         </header>
 
         <section id="not-configured" class="state hidden">
             <p>Расширение не настроено.</p>
-            <p class="hint">Запусти в боте <code>/extension_token</code>, скопируй токен сюда.</p>
+            <p class="hint">Запусти в боте <code>/extension_token</code>, вставь токен в настройках.</p>
             <button id="open-options-2" class="primary">Открыть настройки</button>
         </section>
 
@@ -27,35 +27,16 @@
         <section id="main" class="state hidden">
             <div class="who" id="who"></div>
 
-            <h2>Создать подписку</h2>
-
-            <div class="picked" id="picked"></div>
-
-            <div class="row">
-                <input id="search" placeholder="33169, NO, название…" autocomplete="off" spellcheck="false">
+            <div class="subscribe">
+                <input id="camp-input" inputmode="numeric" placeholder="human_id кампании, напр. 036469"
+                       autocomplete="off" spellcheck="false">
+                <button id="camp-subscribe" class="primary subscribe-btn">Подписать</button>
             </div>
+            <div id="subscribe-msg" class="msg hidden"></div>
+            <p class="hint tip">💡 Или жми <b>🔔</b> прямо у кампании на странице AIO.</p>
 
-            <ul class="suggestions hidden" id="suggestions"></ul>
-
-            <label class="row">
-                <span>Частота</span>
-                <select id="interval">
-                    <option value="60">1 час</option>
-                    <option value="180" selected>3 часа</option>
-                    <option value="360">6 часов</option>
-                    <option value="720">12 часов</option>
-                    <option value="1440">24 часа</option>
-                </select>
-            </label>
-
-            <input id="group-name" placeholder="Имя (необязательно)" autocomplete="off">
-
-            <button id="create" class="primary" disabled>Выбери хотя бы один ленд</button>
-
-            <div id="create-error" class="error hidden"></div>
-
-            <h2>Мои подписки <span id="groups-count" class="count"></span></h2>
-            <div id="groups" class="groups"></div>
+            <h2>Мои кампании <span id="camps-count" class="count"></span></h2>
+            <div id="camps" class="camps"></div>
         </section>
 
         <section id="loading" class="state">

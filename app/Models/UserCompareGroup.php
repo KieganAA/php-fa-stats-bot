@@ -22,12 +22,19 @@ class UserCompareGroup extends Model
 
     public const INTERVAL_MAX = 10080; // 7 days
 
+    /** child_key prefixes for campaign-derived groups (see migration BB). */
+    public const CHILD_SPLIT = 'split';
+
+    public const CHILD_MVT = 'mvt';
+
     protected $guarded = ['id'];
 
     protected $casts = [
         'paused_at' => 'datetime',
         'last_notified_at' => 'datetime',
+        'orphaned_at' => 'datetime',
         'notify_interval_minutes' => 'integer',
+        'step_position' => 'integer',
     ];
 
     /**
@@ -38,6 +45,11 @@ class UserCompareGroup extends Model
     public function isDueForPush(\DateTimeInterface $now): bool
     {
         if (! $this->isActive()) {
+            return false;
+        }
+        // Orphaned campaign children await a keep/delete decision — don't push
+        // a report for something that may no longer exist in AIO.
+        if ($this->orphaned_at !== null) {
             return false;
         }
         if ($this->last_notified_at === null) {
@@ -53,6 +65,23 @@ class UserCompareGroup extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function campaignSubscription(): BelongsTo
+    {
+        return $this->belongsTo(CampaignSubscription::class);
+    }
+
+    /** True for the auto-created split/MVT children of a campaign subscription. */
+    public function isCampaignChild(): bool
+    {
+        return $this->campaign_subscription_id !== null;
+    }
+
+    /** True when resync flagged this child as no longer present in AIO. */
+    public function isOrphaned(): bool
+    {
+        return $this->orphaned_at !== null;
     }
 
     public function members(): HasMany

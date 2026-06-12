@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers\Api\Ext;
 
+use App\Http\Controllers\Api\CampaignsController;
 use App\Http\Controllers\Api\GroupsController;
 use App\Http\Controllers\Api\LandingsController;
+use App\Models\CampaignSubscription;
 use App\Models\UserCompareGroup;
 use App\Services\Auth\AppContext;
+use App\Services\Campaign\CampaignSubscriptionService;
+use App\Services\Campaign\CampaignTokenResolver;
 use App\Services\Stats\LandingFormatter;
+use App\Services\Tracking\CompareGroupUnbinder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -126,5 +131,49 @@ class ExtensionController
             'resolved' => $resolved,
             'missing' => $missing,
         ]);
+    }
+
+    // ===== Campaign subscriptions =====
+    // All delegate to the canonical CampaignsController so the extension and the
+    // Mini App speak the exact same wire format.
+
+    /** GET /api/ext/campaigns — the user's campaign subscriptions + children. */
+    public function campaigns(AppContext $ctx, CampaignsController $delegate): JsonResponse
+    {
+        return $delegate->index($ctx);
+    }
+
+    /**
+     * POST /api/ext/campaign — the extension's headline action. The content
+     * script grabs a campaign human_id (or uuid) off an AIO page and posts it;
+     * the backend derives the splits + MVT landings and wires up the child
+     * subscriptions. Idempotent: re-posting the same campaign is a resync.
+     */
+    public function subscribeCampaign(
+        Request $request,
+        AppContext $ctx,
+        CampaignsController $delegate,
+        CampaignTokenResolver $resolver,
+        CampaignSubscriptionService $service,
+    ): JsonResponse {
+        return $delegate->store($request, $ctx, $resolver, $service);
+    }
+
+    /** PATCH /api/ext/campaigns/{campaign} — cadence / pause. */
+    public function updateCampaign(Request $request, AppContext $ctx, CampaignsController $delegate, CampaignSubscription $campaign): JsonResponse
+    {
+        return $delegate->update($request, $ctx, $campaign);
+    }
+
+    /** POST /api/ext/campaigns/{campaign}/resync — re-derive structure. */
+    public function resyncCampaign(AppContext $ctx, CampaignsController $delegate, CampaignSubscriptionService $service, CampaignSubscription $campaign): JsonResponse
+    {
+        return $delegate->resync($ctx, $service, $campaign);
+    }
+
+    /** DELETE /api/ext/campaigns/{campaign} — drop the subscription. */
+    public function destroyCampaign(AppContext $ctx, CampaignsController $delegate, CompareGroupUnbinder $unbinder, CampaignSubscription $campaign): JsonResponse
+    {
+        return $delegate->destroy($ctx, $unbinder, $campaign);
     }
 }

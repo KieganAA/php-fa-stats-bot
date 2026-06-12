@@ -84,4 +84,13 @@ export const api = {
     deleteGroup: (id) => request('DELETE', `/groups/${id}`),
     listLandings: (q) => request('GET', '/landings', { query: { q } }),
     resolve: (tokens) => request('POST', '/resolve', { body: { tokens } }),
+
+    // ===== Campaigns — the extension's primary surface =====
+    // Hand the backend a campaign human_id (or uuid) and it derives the splits
+    // + MVT subscriptions itself. Re-calling is an idempotent resync.
+    subscribeCampaign: (campaign) => request('POST', '/campaign', { body: { campaign } }),
+    listCampaigns: () => request('GET', '/campaigns'),
+    updateCampaign: (id, body) => request('PATCH', `/campaigns/${id}`, { body }),
+    resyncCampaign: (id) => request('POST', `/campaigns/${id}/resync`),
+    deleteCampaign: (id) => request('DELETE', `/campaigns/${id}`),
 };

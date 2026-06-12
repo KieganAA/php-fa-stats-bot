@@ -93,14 +93,21 @@ class LandingReports
         DateTimeInterface|string $to,
         string $timezone = 'UTC',
         bool $heavy = false,
+        ?string $campaignUuid = null,
     ): PivotResponse {
-        $body = PivotRequest::create()
+        $request = PivotRequest::create()
             ->dates($from, $to, $timezone)
             ->filter($filterKey, $filterValues)
-            ->groupBy($filterKey)
-            ->toArray();
+            ->groupBy($filterKey);
 
-        return $this->aio->pivotReport($body, heavy: $heavy);
+        // Scope the comparison to a single campaign — used by campaign-derived
+        // split subscriptions so the same landing's stats in OTHER campaigns
+        // don't bleed into this report.
+        if ($campaignUuid !== null && $campaignUuid !== '') {
+            $request->filter(PivotKeys::CAMPAIGN, [$campaignUuid]);
+        }
+
+        return $this->aio->pivotReport($request->toArray(), heavy: $heavy);
     }
 
     /** @param  list<string>  $landingUuids */
@@ -137,10 +144,17 @@ class LandingReports
         DateTimeInterface|string $to,
         string $timezone = 'UTC',
         bool $heavy = true,
+        ?string $campaignUuid = null,
     ): PivotResponse {
         $request = PivotRequest::create()
             ->dates($from, $to, $timezone)
             ->filter(PivotKeys::landingUuid($position), [$landingUuid]);
+
+        // Scope MVT variants to a single campaign when requested — campaign
+        // subscriptions want "this landing's variants inside THIS campaign".
+        if ($campaignUuid !== null && $campaignUuid !== '') {
+            $request->filter(PivotKeys::CAMPAIGN, [$campaignUuid]);
+        }
 
         foreach ($mvtFields as $field) {
             $request->groupBy($field->clickhouseKey());

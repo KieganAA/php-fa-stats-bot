@@ -2,8 +2,8 @@
     "manifest_version": 3,
     "name": "bot-stats helper",
     "short_name": "bot-stats",
-    "version": "0.3.0",
-    "description": "Шлёт ленды из AIO в Telegram-бота fa-stats для подписок и сравнений",
+    "version": "0.4.0",
+    "description": "Подписка на кампании AIO в Telegram-боте fa-stats: сплиты и MVT одним кликом",
 
     "icons": {
         "16": "icons/icon-16.png",
@@ -12,9 +12,7 @@
     },
 
     "permissions": [
-        "storage",
-        "contextMenus",
-        "notifications"
+        "storage"
     ],
 
     "host_permissions": [

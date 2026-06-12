@@ -4,8 +4,7 @@
 
 use App\Services\Auth\AppContext;
 use App\Services\Auth\TelegramUserResolver;
-use App\Services\Stats\ComparisonReporter;
-use App\Services\Stats\PeriodParser;
+use App\Support\CampaignTelegram as C;
 use App\Support\FlexibleCommand;
 use App\Support\TelegramHelpers as H;
 use Illuminate\Support\Facades\Redis;
@@ -94,15 +93,16 @@ $bot->middleware(function (Nutgram $bot, callable $next) {
 
 $command('start', function (Nutgram $bot) {
     $bot->sendMessage(
-        "👋 Привет! Я fa-stats-bot — статка из AIO без захода на сайт.\n\n".
-        "<b>Самое простое</b> — просто напиши в чат, что хочешь:\n".
-        "• <code>DK</code> — Дания сегодня\n".
-        "• <code>33169</code> — прокл по human_id\n".
-        "• <code>сравни 33169 и 205215 за неделю</code>\n".
-        "• <code>че там по BR вчера</code>\n\n".
-        "Если бот не понимает или хочешь сразу нужный отчёт — есть точные команды (/help).\n\n".
-        "<b>📱 Мини-апп</b> — кнопками, без перепечатывания, с настройками. Гайд внутри (/guide).\n\n".
-        "<i>Краткая шпаргалка по командам — /help.</i>",
+        "👋 Привет! Я fa-stats-bot — слежу за твоими кампаниями в AIO.\n\n".
+        "Подписываешься на кампанию — я сам нахожу <b>сплиты</b> и <b>MVT</b> внутри ".
+        "и шлю по ним пуши каждые 1/3/6/12/24 ч.\n\n".
+        "<b>Как подписаться:</b>\n".
+        "• <code>/campaign 036469</code> — по human_id кампании\n".
+        "• Или жми <b>🔔</b> у кампании прямо на странице AIO — через расширение (/extension)\n\n".
+        "<b>Дальше:</b>\n".
+        "• /campaigns — твои подписки\n".
+        "• 📱 /open — мини-апп: подписки + настройки метрик и частоты\n\n".
+        "<i>Свободный текст тоже понимаю (напр. «DK за неделю») — отвечу через AI. /help — детали.</i>",
         parse_mode: 'HTML',
         reply_markup: H::openMiniAppKeyboard(),
     );
@@ -154,8 +154,8 @@ $command('extension', function (Nutgram $bot) {
 
     $bot->sendMessage(
         "🧩 <b>Установка Chrome-расширения</b>\n\n".
-        "Расширение помогает прямо со страниц AIO отмечать ленды и одним кликом ".
-        "отправлять их в бот как новые подписки (пуш каждые 1/3/6/12/24 часа).\n\n".
+        "Расширение позволяет одним кликом подписаться на кампанию прямо со страницы AIO — ".
+        "бот сам найдёт сплиты и MVT и будет слать по ним пуши (каждые 1/3/6/12/24 часа).\n\n".
 
         "━━━━━━━━━━━━━━━━━━\n\n".
 
@@ -188,13 +188,13 @@ $command('extension', function (Nutgram $bot) {
         "━━━━━━━━━━━━━━━━━━\n\n".
 
         "<b>Как пользоваться</b>\n".
-        "• Открой <code>app.aio.tech</code> → справа снизу плавающая панель с найденными лендами\n".
-        "• Отмечай чекбоксами → жми <b>«→ N»</b> → они улетят в очередь\n".
-        "• Клик по иконке расширения → выбери частоту → <b>«Создать»</b>\n\n".
+        "• Открой список кампаний на <code>app.aio.tech</code>\n".
+        "• У каждой кампании слева появится <b>🔔</b> — клик подписывает (бот сам раскубатурит сплиты и MVT)\n".
+        "• Уже подписанные кампании помечены зелёной <b>✓</b> — клик по ней пересоберёт структуру\n\n".
 
-        "<b>Бонусы</b>\n".
-        "• Выдели любой текст с id (например <code>33169, 205215</code>) → правый клик → <b>«Отправить выделенное в bot-stats»</b>\n".
-        "• Панель на странице AIO можно таскать за заголовок — позиция запомнится\n".
+        "<b>Управление</b>\n".
+        "• Клик по иконке расширения 🧩 → список твоих кампаний: пауза, частота, resync, удаление\n".
+        "• Там же можно подписаться вручную по <code>human_id</code> кампании\n".
         "• Потерял токен? Запусти /extension_token — выдам новый\n".
         "• Совсем отозвать: /extension_revoke",
         parse_mode: 'HTML',
@@ -241,13 +241,12 @@ $command('guide', function (Nutgram $bot) {
     $keyboard = H::openMiniAppKeyboard('📖 Открыть гайд в мини-аппе', '#/help');
     $bot->sendMessage(
         "<b>📖 Гайд по мини-аппу</b>\n\n".
-        "Внутри есть подробное описание всех вкладок:\n\n".
-        "• <b>📊 Статы</b> — три режима: один примитив, compare двух+, MVT-разбивка ленда\n".
-        "• <b>🏆 Топы</b> — топ-15 стран/баеров/лендов за период\n".
-        "• <b>🔔 Подписки</b> — авто-пуш в чат каждые 1/3/6/12/24 часа\n".
+        "Внутри есть подробное описание вкладок:\n\n".
+        "• <b>🔔 Подписки</b> — твои кампании: подписаться по human_id, пауза, частота ".
+        "(1/3/6/12/24 ч), resync, удаление; видно сплиты и MVT внутри каждой\n".
         "• <b>⚙️ Настройки</b> — пресеты метрик под каждый отчёт, переименование колонок, ".
         "часовой пояс, ключ Anthropic\n".
-        "• <b>❓ Помощь</b> — полный гайд с примерами и инструкциями\n\n".
+        "• <b>❓ Помощь</b> — полный гайд с примерами\n\n".
         ($keyboard !== null
             ? "Жми кнопку — откроется сразу на вкладке Помощь."
             : "Mini App URL не настроен — задай APP_URL в .env."),
@@ -260,135 +259,48 @@ $command('help', function (Nutgram $bot) {
     $bot->sendMessage(
         "<b>Как пользоваться</b>\n\n".
 
-        "<b>1. Пиши в чат свободно</b> — бот разбирает естественный язык:\n".
-        "• <code>DK</code> или <code>как DK</code> — Дания сегодня\n".
-        "• <code>33169 за неделю</code> — прокл за 7 дней\n".
-        "• <code>сравни DK и BR</code> — Δ% между странами\n".
-        "• <code>что там по 205228 вчера</code> — конкретный ленд\n".
-        "Под капотом — Claude, со встроенными инструментами stats/compare. ".
-        "Если хочется быстрее (без AI-задержки) — есть команды ниже.\n\n".
+        "<b>🔔 Кампании — основное</b>\n".
+        "Подписываешься на кампанию → бот сам находит сплиты и MVT внутри и шлёт по ним пуши.\n".
+        "/campaign &lt;human_id|uuid&gt; — подписаться (напр. <code>/campaign 036469</code>)\n".
+        "/campaigns — мои подписки\n".
+        "/resync [id] — обновить структуру (новые/пропавшие сплиты)\n\n".
 
-        "<b>2. Команды (без AI, мгновенно):</b>\n".
-        "/stats &lt;примитив&gt; [период] — одиночные цифры\n".
-        "/compare &lt;a&gt; &lt;b&gt; [...] [период] — сайд-бай-сайд\n".
-        "/geo [период] — топ-15 стран\n".
-        "/buyers [период] — топ баеров\n".
-        "/lps1 / /lps2 [период] — топ лендов по позиции\n".
-        "/mvt &lt;id&gt; [период] — MVT-разбивка ленда\n\n".
+        "<b>🧩 Расширение</b> — подписка в один клик прямо на AIO\n".
+        "/extension — установить (у каждой кампании появится 🔔)\n".
+        "/extension_token — новый токен · /extension_revoke — отозвать\n\n".
 
-        "<b>3. Группы (автопуш каждые 3ч):</b>\n".
-        "/bind &lt;id1&gt; &lt;id2&gt; [name] — забиндить compare-группу\n".
-        "/bind &lt;id&gt; [name] — забиндить MVT-пуш одного ленда\n".
-        "/groups — мои группы\n".
-        "/unbind &lt;name&gt; — снять\n\n".
+        "<b>📱 Мини-апп</b>\n".
+        "/open — список подписок + менеджмент (пауза, частота, resync, удаление)\n".
+        "и настройки: пресеты метрик под отчёты, переименование колонок, часовой пояс\n\n".
 
-        "<b>Примитив</b> — что-нибудь из:\n".
-        "• Код страны: <code>DK</code>, <code>BR</code>, <code>IT</code>, <code>US</code>…\n".
-        "• human_id лендинга: <code>33169</code>, <code>205228</code>…\n".
-        "• UUID лендинга\n\n".
+        "<b>💬 Свободный текст</b> (через AI)\n".
+        "• <code>DK за неделю</code>, <code>33169 вчера</code>, <code>сравни DK и BR</code>\n".
+        "Период: <code>today</code>, <code>вчера</code>, <code>7d</code>, <code>неделя</code>, <code>месяц</code>…\n\n".
 
-        "<b>Период</b> (любой из, по умолчанию today):\n".
-        "• <code>today</code> / <code>сегодня</code>\n".
-        "• <code>yesterday</code> / <code>вчера</code> / <code>позавчера</code>\n".
-        "• <code>7d</code>, <code>24h</code>, <code>2w</code>, <code>1m</code>\n".
-        "• <code>неделя</code> / <code>прошлая неделя</code>\n".
-        "• <code>месяц</code> / <code>прошлый месяц</code>\n".
-        "• <code>3 дня</code>, <code>5 часов</code>\n\n".
-
-        "<b>Метрики и пресеты</b> (тонко в мини-аппе):\n".
-        "• Свой набор колонок под каждый контекст (stats, geo, mvt, …)\n".
-        "• Любую AIO-метрику можно добавить (их ~80)\n".
-        "• Переименовать колонку — пример: <i>Q Visits</i> → <i>Quals</i>\n".
-        "• Часовой пояс, дефолтный период, отображение лендингов\n\n".
-
-        "📖 /guide — подробный гайд по мини-аппу (для новых)\n".
-        "📱 /open — открыть мини-апп\n".
         "🏓 /ping — проверка связи",
         parse_mode: 'HTML',
     );
 })->description('Справка');
 
-$command('stats', function (Nutgram $bot) {
-    $args = H::args($bot);
-    if ($args === []) {
-        $bot->sendMessage('Использование: /stats <примитив> [период]');
+// ===== Campaign subscriptions (the bot's new core) =====
+$command('campaign', function (Nutgram $bot) {
+    C::subscribe($bot, H::args($bot));
+})->description('Подписаться на кампанию (авто-сплиты + MVT)');
 
-        return;
-    }
+$command('campaigns', function (Nutgram $bot) {
+    C::listSubscriptions($bot);
+})->description('Мои подписки на кампании');
 
-    if (! H::runStats($bot, $args)) {
-        $bot->sendMessage('Не понял примитив. /help — что поддерживается.');
-    }
-})->description('Метрики (страна, прокл, …)');
+$command('resync', function (Nutgram $bot) {
+    C::resync($bot, H::args($bot));
+})->description('Обновить структуру кампаний');
 
-$command('geo', function (Nutgram $bot) {
-    H::runRanking($bot, 'geo', H::args($bot));
-})->description('Топ стран');
-
-$command('buyers', function (Nutgram $bot) {
-    H::runRanking($bot, 'buyers', H::args($bot));
-})->description('Топ баеров');
-
-$command('lps1', function (Nutgram $bot) {
-    H::runRanking($bot, 'lp1', H::args($bot));
-})->description('Топ лендингов на LP1');
-
-$command('lps2', function (Nutgram $bot) {
-    H::runRanking($bot, 'lp2', H::args($bot));
-})->description('Топ лендингов на LP2');
-
-$command('mvt', function (Nutgram $bot) {
-    H::runMvt($bot, H::args($bot));
-})->description('MVT-разбивка по лендингу');
-
-$command('bind', function (Nutgram $bot) {
-    try {
-        H::bind($bot, H::args($bot));
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Забиндить группу лендингов (3h compare push)');
-
-$command('groups', function (Nutgram $bot) {
-    try {
-        H::groupsList($bot);
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Мои compare-группы');
-
-$command('unbind', function (Nutgram $bot) {
-    try {
-        H::unbind($bot, H::args($bot));
-    } catch (Throwable $e) {
-        $bot->sendMessage('Ошибка: '.$e->getMessage());
-    }
-})->description('Снять группу');
-
-$command('compare', function (Nutgram $bot) {
-    $args = H::args($bot);
-    if (count($args) < 2) {
-        $bot->sendMessage('Использование: /compare <id|страна> <id|страна> [...] [период]');
-
-        return;
-    }
-
-    [$tokens, $period] = H::splitPeriod($args);
-    if (count($tokens) < 2) {
-        $bot->sendMessage('Нужно минимум 2 примитива.');
-
-        return;
-    }
-
-    H::withPlaceholder($bot, function () use ($tokens, $period): string {
-        $user = app(\App\Services\Auth\AppContext::class)->user();
-        $window = app(PeriodParser::class)->parse($period, $user?->timezone);
-        $names = $user?->metricNamesFor(\App\Services\Stats\MetricColumnResolver::COMPARE);
-        $labels = $user?->metricLabelOverrides() ?? [];
-
-        return app(ComparisonReporter::class)->report($tokens, $window, $names, $labels);
-    });
-})->description('Сравнить N лендов / стран');
+// Old primitive query / landing-subscription commands (/stats /geo /buyers
+// /lps1 /lps2 /mvt /compare /bind /groups /unbind) were retired in the
+// campaign pivot — that surface now lives in the Mini App. The underlying
+// TelegramHelpers methods stay (the AI fallback still answers free-text stats
+// questions like "DK за неделю"); only the slash-command shortcuts are gone.
+// Git history has the registrations if any need to come back.
 
 $command('ai', function (Nutgram $bot) {
     $text = (string) ($bot->message()?->text ?? '');
@@ -402,6 +314,14 @@ $command('ai', function (Nutgram $bot) {
 
     H::runAi($bot, $question);
 })->description('Свободный запрос (AI)');
+
+// Orphan decision buttons. When a resync finds a split/MVT child that vanished
+// from the campaign, the bot posts a card with 🗑 удалить / 💤 оставить. The
+// pattern params {action}∈{del,keep} and {id} are injected into the handler by
+// name. handleOrphanDecision re-checks ownership before acting.
+$bot->onCallbackQueryData('corph:{action}:{id}', function (Nutgram $bot, string $action, string $id) {
+    C::handleOrphanDecision($bot, $action, (int) $id);
+});
 
 // Anything that isn't a registered /command goes to AI. The AI handler has
 // stats/compare tools that handle "DK", "33169 за неделю", "сравни 33169 и

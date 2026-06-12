@@ -67,7 +67,15 @@ export const api = {
     mvt: (primitive, period) =>
         request('GET', '/mvt', { query: { primitive, period } }),
 
-    // Подписки (server still calls them "groups" — Telegram-side legacy term).
+    // Campaign subscriptions — the Mini App's primary surface.
+    listCampaigns: () => request('GET', '/campaigns'),
+    subscribeCampaign: (campaign) => request('POST', '/campaigns', { body: { campaign } }),
+    updateCampaign: (id, body) => request('PATCH', `/campaigns/${id}`, { body }),
+    resyncCampaign: (id) => request('POST', `/campaigns/${id}/resync`),
+    deleteCampaign: (id) => request('DELETE', `/campaigns/${id}`),
+
+    // Legacy landing subscriptions (server calls them "groups"). Kept for the
+    // hidden /subs-legacy surface; campaign-first UI no longer uses them.
     listGroups: () => request('GET', '/groups'),
     createGroup: (body) => request('POST', '/groups', { body }),
     updateGroup: (id, body) => request('PATCH', `/groups/${id}`, { body }),

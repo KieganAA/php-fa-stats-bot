@@ -31,9 +31,10 @@ final class ComparisonReporter
      * @param  array{from: DateTimeInterface, to: DateTimeInterface, timezone: string, label: string}  $window
      * @param  list<string>|null  $metricNames  AIO metric names; null = defaults
      * @param  array<string, string>  $labelOverrides  per-name display labels
+     * @param  string|null  $campaignUuid  scope the comparison to one campaign
      * @return string  Telegram HTML
      */
-    public function report(array $tokens, array $window, ?array $metricNames = null, array $labelOverrides = []): string
+    public function report(array $tokens, array $window, ?array $metricNames = null, array $labelOverrides = [], ?string $campaignUuid = null): string
     {
         if (count($tokens) < 2) {
             throw new RuntimeException('Нужно минимум 2 примитива для сравнения.');
@@ -59,6 +60,7 @@ final class ComparisonReporter
             from: $window['from'],
             to: $window['to'],
             timezone: $window['timezone'],
+            campaignUuid: $campaignUuid,
         );
 
         $byValue = [];

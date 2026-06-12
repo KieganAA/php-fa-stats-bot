@@ -291,6 +291,46 @@
     pointer-events: none;
 }
 
+/* Campaign subscribe button — injected into <aio-data-campaign-relation> on
+   the campaigns list. One click subscribes the whole campaign (the bot derives
+   its splits + MVT). Violet so it reads differently from the blue landing "＋".
+   Turns green on success, red on failure (state kept so the row shows what
+   happened; re-clicking re-syncs). */
+.bs-camp-btn {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin-right: 6px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.3);
+    transition: background 0.15s, transform 0.1s;
+    vertical-align: middle;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.bs-camp-btn:hover {
+    background: rgba(139, 92, 246, 0.3);
+    transform: scale(1.08);
+}
+.bs-camp-btn.bs-camp-btn-done {
+    background: #10b981;
+    color: #fff;
+    box-shadow: 0 0 0 1px #10b981;
+}
+.bs-camp-btn.bs-camp-btn-err {
+    background: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 0 1px #ef4444;
+}
+
 /* Marker class for the menu item we inject into <ati-menu>. The base
    styling is provided by AIO's own .menu-item / .menu-item__label rules —
    we just nudge the colour a hair so the user can tell it's our entry. */

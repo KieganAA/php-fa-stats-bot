@@ -26,9 +26,10 @@
 </template>
 
 <script setup>
+// Campaign-first: the bot's job is campaign subscriptions now, so the nav
+// leads with them. The old /stats and /top screens still exist as routes (for
+// power users / future return) but are hidden from the tab bar.
 const tabs = [
-    { path: '/stats', label: '📊 Статы' },
-    { path: '/top', label: '🏆 Топы' },
     { path: '/subs', label: '🔔 Подписки' },
     { path: '/settings', label: '⚙️ Настройки' },
     { path: '/help', label: '❓ Помощь' },

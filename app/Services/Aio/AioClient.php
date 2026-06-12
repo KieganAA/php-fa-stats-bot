@@ -10,6 +10,7 @@ use App\Services\Aio\Dto\PivotResponse;
 use App\Services\Aio\Dto\User;
 use App\Services\Aio\Http\AioHttpClient;
 use App\Services\Aio\Http\Paginator;
+use Carbon\CarbonImmutable;
 use Generator;
 
 class AioClient
@@ -117,6 +118,74 @@ class AioClient
             'action' => 'Lander\\Create',
             'repository' => 'Eloquent\\LanderRepository',
         ], cacheTtl: 0);
+    }
+
+    /**
+     * The same action endpoint, but for campaigns. Response shape mirrors the
+     * lander one: `{ fields: [{name, value}, ...], data, primary, logs }`.
+     * The interesting payload is `fields[name=="settings"].value` — a JSON
+     * string that decodes to a dict of step_uuid → {payload: {items: […]}}.
+     * See CampaignStructureFetcher for the parsing logic.
+     */
+    public function runCampaignCreateAction(array $uuids, ?int $cacheTtl = null): array
+    {
+        return $this->http->post('api/v1/actions/data', [
+            'uuids' => $uuids,
+            'action' => 'Campaign\\Create',
+            'repository' => 'Eloquent\\CampaignRepository',
+        ], cacheTtl: $cacheTtl);
+    }
+
+    /**
+     * Search the campaigns table (POST /api/v1/tables/data, table
+     * `Tracker\Campaigns`) — used to turn a human_id into the campaign uuid the
+     * structure fetcher needs. Returns the raw `rows`; each carries an
+     * `_identity` block with `uuid`, `human_id` (zero-padded string) and `name`.
+     *
+     * `hide_empty_metrics` stays false so campaigns with no visits in the window
+     * still surface — we're looking one up by id, not ranking by traffic. The
+     * campaign-uuid metric_definition is what makes the table key on campaigns.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function searchCampaigns(string $query, int $limit = 50): array
+    {
+        $now = CarbonImmutable::now();
+
+        $response = $this->http->post('api/v1/tables/data', [
+            'request' => [
+                'Tracker\\Campaigns' => array_merge(
+                    ['table' => 'Tracker\\Campaigns', 'page' => 1, 'limit' => $this->capLimit($limit)],
+                    self::TABLE_REQUEST_DEFAULTS,
+                    [
+                        'search' => $query,
+                        'sort_key' => 'owner',
+                        'sort_direction' => 'desc',
+                        // Current calendar month. AIO 500s on windows that cross
+                        // a month boundary, and with hide_empty_metrics=false a
+                        // campaign surfaces regardless of activity in the window,
+                        // so a single-month range is both safe and sufficient.
+                        'dates' => [
+                            $now->startOfMonth()->format('Y-m-d 00:00:00'),
+                            $now->endOfMonth()->format('Y-m-d 23:59:59'),
+                            'UTC',
+                        ],
+                        'metric_definition' => [
+                            'clickhouse_key' => 'campaign_uuid',
+                            'key' => 'campaign_uuid',
+                            'model_key' => 'uuid',
+                            'clickhouse_model_key' => 'column',
+                            'type' => 'column',
+                            'main_for' => 'Visits Based',
+                        ],
+                    ],
+                ),
+            ],
+        ], cacheTtl: 0);
+
+        $rows = $response['Tracker\\Campaigns']['response']['rows'] ?? [];
+
+        return is_array($rows) ? array_values($rows) : [];
     }
 
     /**

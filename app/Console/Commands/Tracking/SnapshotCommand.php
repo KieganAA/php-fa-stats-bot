@@ -85,6 +85,13 @@ class SnapshotCommand extends Command
         // intervals without per-interval crons.
         $groups = UserCompareGroup::query()
             ->whereNull('paused_at')
+            ->whereNull('orphaned_at')   // campaign children awaiting keep/delete
+            ->where(function ($q) {
+                // Either a standalone group, or a campaign child whose parent
+                // subscription isn't paused.
+                $q->whereNull('campaign_subscription_id')
+                    ->orWhereHas('campaignSubscription', fn ($s) => $s->whereNull('paused_at'));
+            })
             ->has('members', '>=', 1)
             ->get();
 

@@ -30,27 +30,24 @@ class SetCommandsCommand extends Command
             return self::SUCCESS;
         }
 
-        // Curated order — Telegram shows them in the order we send. Put the
-        // most common ones first. Order also drives the suggestion menu.
+        // Curated order — Telegram shows them in the order we send. Order also
+        // drives the suggestion menu.
+        //
+        // Campaign-first pivot: the bot's job is now "subscribe to a campaign →
+        // auto-track its splits & MVT". So the menu leads with the campaign
+        // trio and a thin support set (extension is the primary entry point).
+        // The old primitive commands (/stats /compare /geo /buyers /lps1 /lps2
+        // /mvt /bind /groups /unbind /ai /ping /guide) still work if typed —
+        // they're just hidden from the suggestion menu so the surface stays
+        // focused. Re-add a row here to resurface any of them.
         $commands = [
-            ['stats', 'статы по примитиву'],
-            ['compare', 'сравнить 2+ примитивов'],
-            ['geo', 'топ стран'],
-            ['buyers', 'топ баеров'],
-            ['lps1', 'топ лендингов на LP1'],
-            ['lps2', 'топ лендингов на LP2'],
-            ['mvt', 'MVT-разбивка ленда'],
-            ['bind', 'забиндить подписку'],
-            ['groups', 'мои подписки'],
-            ['unbind', 'снять подписку'],
-            ['open', '📱 открыть мини-апп'],
+            ['campaign', 'подписаться на кампанию (сплиты + MVT)'],
+            ['campaigns', 'мои подписки на кампании'],
+            ['resync', 'обновить структуру кампаний'],
             ['extension', '🧩 установить Chrome-расширение'],
             ['extension_token', 'обновить токен расширения'],
-            ['extension_revoke', 'отозвать токен расширения'],
-            ['guide', '📖 гайд по мини-аппу'],
+            ['open', '📱 открыть мини-апп'],
             ['help', 'справка'],
-            ['ai', 'свободный вопрос (AI)'],
-            ['ping', 'проверка связи'],
             ['start', 'начать сначала'],
         ];
 

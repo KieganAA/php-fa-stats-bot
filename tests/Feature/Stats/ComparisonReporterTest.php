@@ -25,7 +25,9 @@ class ComparisonReporterTest extends TestCase
         $reports = Mockery::mock(LandingReports::class);
         $reports->shouldReceive('compareByPrimitive')
             ->once()
-            ->with('landing_uuids[1]', ['uuid-33169', 'uuid-205215'], Mockery::any(), Mockery::any(), Mockery::any())
+            // Closure matcher ignores trailing args (timezone/heavy/campaignUuid)
+            // so adding optional params doesn't break this expectation.
+            ->withArgs(fn (string $key, array $vals) => $key === 'landing_uuids[1]' && $vals === ['uuid-33169', 'uuid-205215'])
             ->andReturn(new PivotResponse(
                 rows: [
                     ['dimensions' => ['group_0' => 'uuid-33169'], 'metrics' => ['clicks-uuid' => 100, 'leads-uuid' => 8]],
@@ -53,7 +55,8 @@ class ComparisonReporterTest extends TestCase
         $reports = Mockery::mock(LandingReports::class);
         $reports->shouldReceive('compareByPrimitive')
             ->once()
-            ->with('location_country_code', ['DK', 'BR'], Mockery::any(), Mockery::any(), Mockery::any())
+            // Closure matcher ignores trailing args (timezone/heavy/campaignUuid).
+            ->withArgs(fn (string $key, array $vals) => $key === 'location_country_code' && $vals === ['DK', 'BR'])
             ->andReturn(new PivotResponse(
                 rows: [
                     ['dimensions' => ['group_0' => 'DK'], 'metrics' => ['clicks-uuid' => 50]],

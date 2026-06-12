@@ -1,11 +1,10 @@
 import { api, getConfig } from '../api.js';
 
-// ===== state =====
-const state = {
-    picked: [],       // selected landings to bind
-    groups: [],
-    searchTimer: null,
-};
+const INTERVALS = [
+    [60, '1ч'], [180, '3ч'], [360, '6ч'], [720, '12ч'], [1440, '24ч'],
+];
+
+const state = { campaigns: [] };
 
 // ===== boot =====
 async function boot() {
@@ -18,9 +17,7 @@ async function boot() {
         const me = await api.me();
         document.getElementById('who').innerHTML =
             `Залогинен как <b>${escapeHtml(me.display_name)}</b> · TZ ${escapeHtml(me.timezone)}`;
-        await reloadGroups();
-        // If the content script left "send these" message in storage — preload it.
-        await consumePendingFromStorage();
+        await reload();
         show('main');
     } catch (e) {
         if (e.status === 401) {
@@ -28,8 +25,7 @@ async function boot() {
         } else {
             show('not-configured');
             document.getElementById('not-configured').insertAdjacentHTML(
-                'beforeend',
-                `<p class="error">${escapeHtml(e.message)}</p>`,
+                'beforeend', `<p class="error">${escapeHtml(e.message)}</p>`,
             );
         }
     }
@@ -41,246 +37,184 @@ function show(id) {
     }
 }
 
-// ===== pending-from-content-script handoff =====
-// content.js stuffs picked landings into chrome.storage.local under
-// `pending_landings`. Popup drains it on open.
-async function consumePendingFromStorage() {
-    const data = await chrome.storage.local.get({ pending_landings: [] });
-    if (!data.pending_landings.length) return;
-
-    const tokens = data.pending_landings;
-    await chrome.storage.local.remove('pending_landings');
-
-    try {
-        const res = await api.resolve(tokens);
-        for (const r of res.resolved) {
-            if (!state.picked.find((p) => p.uuid === r.uuid)) state.picked.push(r);
-        }
-        renderPicked();
-        updateCreateButton();
-        if (res.missing.length) {
-            const msg = `Не нашёл в базе: ${res.missing.join(', ')}. Возможно, сначала запусти aio:sync:landings.`;
-            const err = document.getElementById('create-error');
-            err.textContent = msg;
-            err.classList.remove('hidden');
-        }
-    } catch (e) {
-        const err = document.getElementById('create-error');
-        err.textContent = `Не удалось подтянуть найденные ленды: ${e.message}`;
-        err.classList.remove('hidden');
-    }
+// ===== campaigns =====
+async function reload() {
+    const data = await api.listCampaigns();
+    state.campaigns = data.campaigns || [];
+    document.getElementById('camps-count').textContent =
+        state.campaigns.length ? `(${state.campaigns.length})` : '';
+    renderCampaigns();
 }
 
-// ===== groups list =====
-async function reloadGroups() {
-    const data = await api.listGroups();
-    state.groups = data.groups || [];
-    document.getElementById('groups-count').textContent =
-        state.groups.length ? `(${state.groups.length})` : '';
-    renderGroups();
-}
-
-function renderGroups() {
-    const box = document.getElementById('groups');
-    if (!state.groups.length) {
-        box.innerHTML = '<p style="color: var(--muted); font-size: 11px;">Подписок нет.</p>';
+function renderCampaigns() {
+    const box = document.getElementById('camps');
+    if (!state.campaigns.length) {
+        box.innerHTML = `<p class="empty">Подписок на кампании нет.<br>
+            Введи human_id выше или жми 🔔 у кампании на AIO.</p>`;
         return;
     }
-    box.innerHTML = state.groups.map((g) => `
-        <div class="group" data-id="${g.id}">
-            <div class="header-row">
-                <div>
-                    <span class="name">${escapeHtml(g.name)}</span>
-                    <span class="badge">${escapeHtml(g.mode || 'compare')}</span>
-                    <span class="badge">⏱ ${formatInterval(g.notify_interval_minutes)}</span>
-                    ${g.paused ? '<span class="badge" style="color: #d97706;">⏸</span>' : ''}
-                </div>
-                <div class="group-actions">
-                    <button class="pause" title="${g.paused ? 'Возобновить' : 'Пауза'}">${g.paused ? '▶' : '⏸'}</button>
-                    <button class="del" title="Удалить">×</button>
-                </div>
-            </div>
-            <div class="meta-row">
-                ${g.last_notified_at ? `last push ${formatRelative(g.last_notified_at)}` : 'ещё ни разу не пушил'}
-                ${g.next_push_at && !g.paused ? ` · next ~ ${formatRelative(g.next_push_at)}` : ''}
-            </div>
-            <ul class="members">
-                ${(g.members || []).map((m) => `<li>${escapeHtml(m.short_label || 'unknown')}</li>`).join('')}
-            </ul>
-        </div>
-    `).join('');
 
-    // wire actions
-    box.querySelectorAll('.group').forEach((node) => {
-        const id = parseInt(node.dataset.id, 10);
-        const g = state.groups.find((x) => x.id === id);
-        node.querySelector('.pause')?.addEventListener('click', () => togglePause(g));
-        node.querySelector('.del')?.addEventListener('click', () => deleteGroup(g));
-    });
-}
+    box.innerHTML = state.campaigns.map((c) => {
+        const bits = [];
+        bits.push(`<span class="badge">${c.splits} сплит</span>`);
+        bits.push(`<span class="badge">${c.mvts} MVT</span>`);
+        if (c.paused) bits.push('<span class="badge warn">⏸ пауза</span>');
+        if (c.orphans > 0) bits.push(`<span class="badge danger">⚠️ ${c.orphans} пропал</span>`);
 
-async function togglePause(g) {
-    try {
-        const res = await api.updateGroup(g.id, { paused: !g.paused });
-        Object.assign(g, res.group);
-        renderGroups();
-    } catch (e) {
-        alert(e.message);
-    }
-}
+        const intervalSel = INTERVALS.map(([v, l]) =>
+            `<option value="${v}"${v === c.notify_interval_minutes ? ' selected' : ''}>${l}</option>`,
+        ).join('');
 
-async function deleteGroup(g) {
-    if (!confirm(`Удалить подписку «${g.name}»?`)) return;
-    try {
-        await api.deleteGroup(g.id);
-        await reloadGroups();
-    } catch (e) {
-        alert(e.message);
-    }
-}
+        const children = (c.children || []).map((ch) => {
+            const lands = (ch.landings || [])
+                .map((l) => (l.human_id != null ? `#${l.human_id}` : (l.uuid || '').slice(0, 6)))
+                .join(', ');
+            const icon = ch.mode === 'mvt' ? '🧬' : '🔀';
+            const orphan = ch.orphaned ? ' <span class="danger">⚠</span>' : '';
+            return `<li>${icon} ${escapeHtml(stripPrefix(ch.name))}${orphan}
+                <span class="land-ids">${escapeHtml(lands)}</span></li>`;
+        }).join('');
 
-// ===== landing search =====
-const $search = document.getElementById('search');
-const $suggestions = document.getElementById('suggestions');
+        const next = c.next_push_at && !c.paused ? `next ~ ${formatRelative(c.next_push_at)}` : '';
+        const synced = c.last_synced_at ? `синк ${formatRelative(c.last_synced_at)}` : '';
 
-$search.addEventListener('focus', () => fetchSuggestions(''));
-$search.addEventListener('input', () => {
-    clearTimeout(state.searchTimer);
-    state.searchTimer = setTimeout(() => fetchSuggestions($search.value.trim()), 200);
-});
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('#search') && !e.target.closest('#suggestions')) {
-        $suggestions.classList.add('hidden');
-    }
-});
-
-async function fetchSuggestions(q) {
-    try {
-        const data = await api.listLandings(q);
-        renderSuggestions(data.landings || []);
-    } catch (e) {
-        $suggestions.innerHTML = `<li class="error">${escapeHtml(e.message)}</li>`;
-        $suggestions.classList.remove('hidden');
-    }
-}
-
-function renderSuggestions(items) {
-    if (!items.length) {
-        $suggestions.classList.add('hidden');
-        return;
-    }
-    $suggestions.innerHTML = items.map((l) => {
-        const picked = state.picked.some((p) => p.uuid === l.uuid);
         return `
-            <li data-uuid="${escapeHtml(l.uuid)}" class="${picked ? 'picked-state' : ''}">
-                <span class="label">${escapeHtml(l.label)}</span>
-                <span class="meta">${escapeHtml(l.name || '')}${l.type ? ' · ' + escapeHtml(l.type) : ''}</span>
-            </li>
-        `;
+        <div class="camp ${c.paused ? 'is-paused' : ''}" data-id="${c.id}">
+            <div class="camp-top">
+                <div class="camp-id">
+                    <span class="label">${escapeHtml(c.label)}</span>
+                    <span class="cname">${escapeHtml(c.name || '')}</span>
+                </div>
+                <div class="camp-actions">
+                    <button class="act pause" title="${c.paused ? 'Возобновить' : 'Пауза'}">${c.paused ? '▶️' : '⏸'}</button>
+                    <button class="act resync" title="Пересобрать структуру (resync)">🔄</button>
+                    <button class="act del" title="Удалить подписку">🗑</button>
+                </div>
+            </div>
+            <div class="camp-badges">${bits.join('')}</div>
+            <div class="camp-ctl">
+                <label class="interval">⏱ каждые
+                    <select class="interval-sel">${intervalSel}</select>
+                </label>
+                <span class="meta">${[next, synced].filter(Boolean).join(' · ')}</span>
+            </div>
+            ${children ? `
+            <details class="camp-children">
+                <summary>${(c.children || []).length} подписок внутри</summary>
+                <ul>${children}</ul>
+            </details>` : ''}
+            <div class="camp-msg hidden"></div>
+        </div>`;
     }).join('');
-    $suggestions.classList.remove('hidden');
-    $suggestions.querySelectorAll('li').forEach((node) => {
-        node.addEventListener('click', () => {
-            const uuid = node.dataset.uuid;
-            const l = items.find((x) => x.uuid === uuid);
-            if (l) addPicked(l);
-        });
+
+    box.querySelectorAll('.camp').forEach((node) => {
+        const id = parseInt(node.dataset.id, 10);
+        const c = state.campaigns.find((x) => x.id === id);
+        node.querySelector('.pause')?.addEventListener('click', () => togglePause(c, node));
+        node.querySelector('.resync')?.addEventListener('click', () => resync(c, node));
+        node.querySelector('.del')?.addEventListener('click', () => remove(c));
+        node.querySelector('.interval-sel')?.addEventListener('change', (e) =>
+            setInterval(c, parseInt(e.target.value, 10), node));
     });
 }
 
-function addPicked(l) {
-    if (state.picked.some((p) => p.uuid === l.uuid)) return;
-    state.picked.push(l);
-    $search.value = '';
-    $suggestions.classList.add('hidden');
-    renderPicked();
-    updateCreateButton();
-}
-
-function dropPicked(idx) {
-    state.picked.splice(idx, 1);
-    renderPicked();
-    updateCreateButton();
-}
-
-function movePicked(idx, delta) {
-    const j = idx + delta;
-    if (j < 0 || j >= state.picked.length) return;
-    [state.picked[idx], state.picked[j]] = [state.picked[j], state.picked[idx]];
-    renderPicked();
-}
-
-function renderPicked() {
-    const box = document.getElementById('picked');
-    if (!state.picked.length) {
-        box.innerHTML = '';
-        return;
-    }
-    box.innerHTML = state.picked.map((l, i) => `
-        <div class="chip">
-            <span class="idx">${i + 1}.</span>
-            <span class="label">${escapeHtml(l.label)}</span>
-            <button data-act="up" data-i="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
-            <button data-act="down" data-i="${i}" ${i === state.picked.length - 1 ? 'disabled' : ''}>↓</button>
-            <button class="drop" data-act="drop" data-i="${i}">×</button>
-        </div>
-    `).join('');
-    box.querySelectorAll('button').forEach((b) => {
-        b.addEventListener('click', () => {
-            const i = parseInt(b.dataset.i, 10);
-            const act = b.dataset.act;
-            if (act === 'drop') dropPicked(i);
-            else if (act === 'up') movePicked(i, -1);
-            else if (act === 'down') movePicked(i, +1);
-        });
+async function togglePause(c, node) {
+    await guard(node, async () => {
+        const res = await api.updateCampaign(c.id, { paused: !c.paused });
+        Object.assign(c, res.campaign);
+        renderCampaigns();
     });
 }
 
-function updateCreateButton() {
-    const btn = document.getElementById('create');
-    const n = state.picked.length;
-    btn.disabled = n === 0;
-    if (n === 0) btn.textContent = 'Выбери хотя бы один ленд';
-    else if (n === 1) btn.textContent = 'Создать (MVT-режим)';
-    else btn.textContent = `Создать compare (${n})`;
+async function setInterval(c, minutes, node) {
+    await guard(node, async () => {
+        const res = await api.updateCampaign(c.id, { notify_interval_minutes: minutes });
+        Object.assign(c, res.campaign);
+        renderCampaigns();
+    });
 }
 
-// ===== create =====
-document.getElementById('create').addEventListener('click', async () => {
-    const btn = document.getElementById('create');
-    const err = document.getElementById('create-error');
-    err.classList.add('hidden');
-    btn.disabled = true;
-    btn.textContent = 'Сохраняю…';
+async function resync(c, node) {
+    await guard(node, async () => {
+        const res = await api.resyncCampaign(c.id);
+        Object.assign(c, res.campaign);
+        const ch = res.changed || {};
+        const parts = [];
+        if (ch.created) parts.push(`+${ch.created}`);
+        if (ch.reactivated) parts.push(`♻${ch.reactivated}`);
+        if (ch.orphaned) parts.push(`⚠${ch.orphaned}`);
+        renderCampaigns();
+        flashCard(c.id, parts.length ? `Обновлено: ${parts.join(' ')}` : 'Без изменений', false);
+    }, 'Обновляю…');
+}
+
+async function remove(c) {
+    if (!confirm(`Удалить подписку на ${c.label}?\n${c.name || ''}`)) return;
     try {
-        const primitives = state.picked.map((l) =>
-            l.human_id !== null && l.human_id !== undefined ? String(l.human_id) : l.uuid,
-        );
-        const interval = parseInt(document.getElementById('interval').value, 10);
-        const nameField = document.getElementById('group-name').value.trim();
-        await api.createGroup({
-            primitives,
-            name: nameField || null,
-            notify_interval_minutes: interval,
-        });
-        state.picked = [];
-        document.getElementById('group-name').value = '';
-        renderPicked();
-        updateCreateButton();
-        await reloadGroups();
+        await api.deleteCampaign(c.id);
+        await reload();
     } catch (e) {
-        err.textContent = e.message;
-        err.classList.remove('hidden');
-        btn.disabled = false;
-        updateCreateButton();
+        alert(e.message);
     }
-});
+}
+
+// Disable a card's buttons while an action runs; show errors inline.
+async function guard(node, fn, busyLabel) {
+    const msg = node.querySelector('.camp-msg');
+    node.querySelectorAll('button, select').forEach((el) => (el.disabled = true));
+    if (busyLabel && msg) { msg.textContent = busyLabel; msg.className = 'camp-msg'; }
+    try {
+        await fn();
+    } catch (e) {
+        if (msg) { msg.textContent = e?.message || String(e); msg.className = 'camp-msg error'; }
+    }
+}
+
+function flashCard(id, text, isError) {
+    const node = document.querySelector(`.camp[data-id="${id}"] .camp-msg`);
+    if (!node) return;
+    node.textContent = text;
+    node.className = `camp-msg ${isError ? 'error' : 'ok'}`;
+    setTimeout(() => { node.textContent = ''; node.className = 'camp-msg hidden'; }, 3500);
+}
+
+// ===== subscribe by human_id =====
+const $input = document.getElementById('camp-input');
+const $subBtn = document.getElementById('camp-subscribe');
+const $subMsg = document.getElementById('subscribe-msg');
+
+$subBtn.addEventListener('click', subscribe);
+$input.addEventListener('keydown', (e) => { if (e.key === 'Enter') subscribe(); });
+
+async function subscribe() {
+    const token = $input.value.trim();
+    if (!token) return;
+    $subBtn.disabled = true;
+    $subBtn.textContent = '⏳';
+    setMsg('', null);
+    try {
+        const res = await api.subscribeCampaign(token);
+        const c = res.campaign || {};
+        $input.value = '';
+        setMsg(`✅ ${c.label || token}: ${c.splits} сплит, ${c.mvts} MVT.`, 'ok');
+        await reload();
+    } catch (e) {
+        setMsg(e?.message || String(e), 'error');
+    } finally {
+        $subBtn.disabled = false;
+        $subBtn.textContent = 'Подписать';
+    }
+}
+
+function setMsg(text, kind) {
+    if (!text) { $subMsg.className = 'msg hidden'; $subMsg.textContent = ''; return; }
+    $subMsg.textContent = text;
+    $subMsg.className = `msg ${kind || ''}`;
+}
 
 // ===== options links =====
 ['open-options', 'open-options-2', 'open-options-3'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('click', () => {
-        chrome.runtime.openOptionsPage();
-    });
+    document.getElementById(id)?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 });
 
 // ===== utils =====
@@ -290,13 +224,10 @@ function escapeHtml(s) {
     }[c]));
 }
 
-function formatInterval(min) {
-    if (!min) return '?';
-    if (min % 60 === 0) {
-        const h = min / 60;
-        return h === 1 ? '1ч' : `${h}ч`;
-    }
-    return `${min}м`;
+// "#116400 CA · шаг 1 сплит" → "шаг 1 сплит"
+function stripPrefix(name) {
+    const i = (name || '').indexOf('· ');
+    return i !== -1 ? name.slice(i + 2).trim() : (name || '');
 }
 
 function formatRelative(iso) {
@@ -304,8 +235,7 @@ function formatRelative(iso) {
         const d = new Date(iso);
         const diffMs = d - new Date();
         const future = diffMs > 0;
-        const abs = Math.abs(diffMs);
-        const mins = Math.round(abs / 60000);
+        const mins = Math.round(Math.abs(diffMs) / 60000);
         if (mins < 1) return future ? 'сейчас' : 'только что';
         if (mins < 60) return future ? `через ${mins}м` : `${mins}м назад`;
         const h = Math.round(mins / 60);

@@ -49,8 +49,9 @@ final class MvtReporter
 
     /**
      * @param  array{from: \DateTimeInterface, to: \DateTimeInterface, timezone: string, label: string}  $window
+     * @param  string|null  $campaignUuid  scope the variant breakdown to one campaign
      */
-    public function report(Landing $landing, array $window, int $position = 1): array
+    public function report(Landing $landing, array $window, int $position = 1, ?string $campaignUuid = null): array
     {
         $fields = $this->loadFields();
         if ($fields === []) {
@@ -66,6 +67,7 @@ final class MvtReporter
             from: $window['from'],
             to: $window['to'],
             timezone: $window['timezone'],
+            campaignUuid: $campaignUuid,
         );
 
         $slugByGroup = [];

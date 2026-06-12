@@ -14,7 +14,8 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# public/build IS committed: the prod box has no Node (2 GB droplet), so Mini
+# App assets are built locally (`make assets`) and shipped via git.
 /public/hot
 /public/storage
 /storage/*.key

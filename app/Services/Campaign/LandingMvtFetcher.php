@@ -88,7 +88,31 @@ final class LandingMvtFetcher
             );
         }
 
+        $this->storeMvtSummary($landingUuid, $mvtFields);
+
         return new LandingMvtInfo($landingUuid, $mvtFields);
+    }
+
+    /**
+     * Persist a compact variant summary onto the catalog row so UIs (Mini App
+     * subscription details) can show WHAT is being MVT-tested without another
+     * AIO round-trip. Unlike the identity backfill this always overwrites —
+     * variants change as users edit the landing and fresh data wins.
+     *
+     * @param  list<MvtField>  $mvtFields
+     */
+    private function storeMvtSummary(string $landingUuid, array $mvtFields): void
+    {
+        try {
+            Landing::query()->where('uuid', $landingUuid)->update([
+                'mvt_settings' => array_map(fn (MvtField $f) => [
+                    'key' => $f->key,
+                    'variants' => $f->variants,
+                ], $mvtFields),
+            ]);
+        } catch (Throwable) {
+            // Summary is a nice-to-have; never break the subscribe flow.
+        }
     }
 
     /**

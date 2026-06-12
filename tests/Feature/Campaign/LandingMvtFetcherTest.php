@@ -119,6 +119,35 @@ final class LandingMvtFetcherTest extends TestCase
         $this->assertSame(['ES'], $row->countries);
     }
 
+    public function test_fetch_stores_mvt_variant_summary_on_catalog_row(): void
+    {
+        Http::fake([
+            'app.aio.test/api/v1/actions/data*' => Http::response([
+                'fields' => [
+                    ['name' => 'name', 'value' => 'mvt lander'],
+                    ['name' => 'human_id', 'value' => 42],
+                    ['name' => 'mvt_settings', 'value' => json_encode([[
+                        'key' => 'lp_header',
+                        'uuid' => 'f-1',
+                        'settings' => ['items' => [
+                            ['payload' => ['content' => 'Headline A']],
+                            ['payload' => ['content' => 'Headline B']],
+                        ]],
+                    ]])],
+                ],
+                'data' => [], 'primary' => null, 'logs' => [],
+            ]),
+        ]);
+
+        $this->app->make(LandingMvtFetcher::class)->fetch('lp-mvt-x');
+
+        $row = Landing::query()->where('uuid', 'lp-mvt-x')->firstOrFail();
+        $this->assertSame(
+            [['key' => 'lp_header', 'variants' => ['Headline A', 'Headline B']]],
+            $row->mvt_settings,
+        );
+    }
+
     public function test_fetch_does_not_overwrite_existing_catalog_row(): void
     {
         Landing::query()->create([

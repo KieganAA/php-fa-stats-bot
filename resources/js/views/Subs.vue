@@ -118,17 +118,65 @@
                     <summary class="text-xs text-[var(--tg-theme-hint-color,#6b7280)] cursor-pointer select-none">
                         {{ c.children.length }} подписок внутри
                     </summary>
-                    <ul class="mt-1 space-y-0.5 text-xs">
-                        <li
+                    <div class="mt-1.5 space-y-1.5">
+                        <div
                             v-for="ch in c.children"
                             :key="ch.id"
-                            :class="ch.orphaned ? 'text-red-500' : 'text-[var(--tg-theme-hint-color,#6b7280)]'"
+                            class="rounded-lg p-2 bg-[var(--tg-theme-secondary-bg-color,#f3f4f6)]"
+                            :class="ch.orphaned ? 'opacity-60' : ''"
                         >
-                            {{ ch.mode === 'mvt' ? '🧬' : '🔀' }} {{ stripPrefix(ch.name) }}
-                            <span class="text-[10px]">{{ landingIds(ch) }}</span>
-                            <span v-if="ch.orphaned">⚠</span>
-                        </li>
-                    </ul>
+                            <div class="text-xs font-medium flex items-center gap-1">
+                                {{ ch.mode === 'mvt' ? '🧬' : '🔀' }} {{ stripPrefix(ch.name) }}
+                                <span v-if="ch.orphaned" class="text-red-500 text-[10px]">⚠ пропал из кампании</span>
+                            </div>
+
+                            <!-- Split: the landings competing on this step -->
+                            <ul v-if="ch.mode !== 'mvt'" class="mt-1 space-y-0.5">
+                                <li
+                                    v-for="l in ch.landings"
+                                    :key="l.uuid"
+                                    class="text-[11px] flex items-baseline gap-1.5"
+                                >
+                                    <code class="shrink-0 px-1 rounded bg-[var(--tg-theme-bg-color,#fff)]">#{{ l.human_id ?? (l.uuid || '').slice(0, 6) }}</code>
+                                    <span v-if="l.country" class="shrink-0 text-[var(--tg-theme-hint-color,#6b7280)]">{{ l.country }}</span>
+                                    <span class="truncate text-[var(--tg-theme-hint-color,#6b7280)]">{{ l.name || 'без имени' }}</span>
+                                </li>
+                            </ul>
+
+                            <!-- MVT: the landing + each tested field with its variant chips -->
+                            <div v-else class="mt-1 space-y-1">
+                                <div
+                                    v-for="l in ch.landings"
+                                    :key="l.uuid"
+                                    class="text-[11px]"
+                                >
+                                    <div class="flex items-baseline gap-1.5">
+                                        <code class="shrink-0 px-1 rounded bg-[var(--tg-theme-bg-color,#fff)]">#{{ l.human_id ?? (l.uuid || '').slice(0, 6) }}</code>
+                                        <span v-if="l.country" class="shrink-0 text-[var(--tg-theme-hint-color,#6b7280)]">{{ l.country }}</span>
+                                        <span class="truncate text-[var(--tg-theme-hint-color,#6b7280)]">{{ l.name || '' }}</span>
+                                    </div>
+                                    <div v-if="(l.mvt_fields || []).length" class="mt-1 space-y-1">
+                                        <div v-for="f in l.mvt_fields" :key="f.key">
+                                            <div class="text-[10px] uppercase tracking-wide text-[var(--tg-theme-hint-color,#6b7280)]">
+                                                {{ mvtFieldLabel(f.key) }} · {{ f.variants.length }} вар.
+                                            </div>
+                                            <div class="flex flex-wrap gap-1 mt-0.5">
+                                                <span
+                                                    v-for="(v, vi) in f.variants"
+                                                    :key="vi"
+                                                    class="max-w-[160px] truncate text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e7eb)]"
+                                                    :title="v"
+                                                >{{ variantLabel(v) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else class="mt-0.5 text-[10px] text-[var(--tg-theme-hint-color,#6b7280)] italic">
+                                        варианты появятся после следующего resync
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </details>
             </li>
         </ul>
@@ -302,10 +350,29 @@ function stripPrefix(name) {
     return i !== -1 ? name.slice(i + 2).trim() : (name || '');
 }
 
-function landingIds(ch) {
-    return (ch.landings || [])
-        .map((l) => (l.human_id != null ? `#${l.human_id}` : (l.uuid || '').slice(0, 6)))
-        .join(', ');
+// AIO slot keys → friendlier captions; unknown keys shown with lp_ stripped.
+const MVT_FIELD_LABELS = {
+    lp_header: 'заголовок',
+    lp_content_var_subheading: 'подзаголовок',
+    lp_content_var_header_image: 'картинка',
+    lp_mvt_content_var: 'контент',
+    lp_content_var_instruction: 'инструкция',
+};
+function mvtFieldLabel(key) {
+    return MVT_FIELD_LABELS[key] || (key || '').replace(/^lp_(content_var_)?/, '') || key;
+}
+
+// Variant chips: image/file URLs collapse to the file name, long text is
+// left to CSS truncation (full value in the title tooltip).
+function variantLabel(v) {
+    const s = String(v ?? '');
+    if (/^https?:\/\//i.test(s)) {
+        try {
+            const path = new URL(s).pathname;
+            return path.split('/').filter(Boolean).pop() || s;
+        } catch { return s; }
+    }
+    return s || '(пусто)';
 }
 
 function formatRelative(iso) {

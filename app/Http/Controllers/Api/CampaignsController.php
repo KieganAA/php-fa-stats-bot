@@ -291,7 +291,7 @@ class CampaignsController
             'mode' => $child->mode,
             'step' => $child->step_position,
             'orphaned' => $child->orphaned_at !== null,
-            'landings' => $child->members->map(function ($m) {
+            'landings' => $child->members->map(function ($m) use ($child) {
                 $landing = $m->trackedLanding?->landing;
 
                 return [
@@ -299,6 +299,16 @@ class CampaignsController
                     'uuid' => $landing?->uuid ?? $m->trackedLanding?->landing_uuid,
                     'name' => $landing?->name,
                     'country' => $landing?->countries[0] ?? null,
+                    // For MVT children: which fields are being tested and their
+                    // variants (stored on the catalog row at subscribe/resync
+                    // time). Only fields with 2+ variants — single-variant
+                    // slots are just defaults, not a test.
+                    'mvt_fields' => $child->mode === UserCompareGroup::MODE_MVT
+                        ? collect($landing?->mvt_settings ?? [])
+                            ->filter(fn ($f) => is_array($f['variants'] ?? null) && count($f['variants']) >= 2)
+                            ->map(fn ($f) => ['key' => $f['key'] ?? '?', 'variants' => array_values($f['variants'])])
+                            ->values()->all()
+                        : [],
                 ];
             })->values()->all(),
         ];

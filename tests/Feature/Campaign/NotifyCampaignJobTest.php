@@ -149,7 +149,7 @@ final class NotifyCampaignJobTest extends TestCase
         // delivered, last_notified never stamped, job retried forever.
         $this->steps = ['step-1' => ['lp-a', 'lp-b']];
         $this->trafficUuids = [];   // no traffic anywhere today
-        $this->errorPosition = 4;   // landing_uuids[4] → 422, must be skipped
+        $this->errorPosition = 3;   // landing_uuids[3] → 422, must be skipped
         [$user, $sub] = $this->subscribe();
 
         $bot = Nutgram::fake();

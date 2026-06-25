@@ -19,8 +19,10 @@ use Illuminate\Support\Facades\Log;
  */
 final class GroupReportRenderer
 {
-    /** Funnel positions to probe when the structure guess yields no data. */
-    private const CANDIDATE_POSITIONS = [1, 2, 3, 4];
+    /** Funnel positions to probe when the structure guess yields no data.
+     *  Capped at LP3 — funnels don't go deeper, and probing landing_uuids[4]
+     *  just earns an AIO 422. */
+    private const CANDIDATE_POSITIONS = [1, 2, 3];
 
     public function __construct(
         private readonly ComparisonReporter $compare,

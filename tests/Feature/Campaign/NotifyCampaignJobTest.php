@@ -35,6 +35,9 @@ final class NotifyCampaignJobTest extends TestCase
     /** When set, pivot returns data ONLY for this landing_uuids[N] position. */
     private ?int $trafficPosition = null;
 
+    /** When set, pivot at this position returns AIO's 422 "Wrong query". */
+    private ?int $errorPosition = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -68,6 +71,10 @@ final class NotifyCampaignJobTest extends TestCase
                 // Position the query filters on (landing_uuids[N]).
                 $landingCond = $conditions->first(fn ($c) => str_starts_with((string) ($c['key'] ?? ''), 'landing_uuids['));
                 $pos = $landingCond ? (int) preg_replace('/\D/', '', $landingCond['key']) : null;
+                if ($this->errorPosition !== null && $pos === $this->errorPosition) {
+                    // AIO rejects landing_uuids[N] beyond the funnel depth.
+                    return Http::response(['error' => 'Wrong query', 'trace' => []], 422);
+                }
                 if ($this->trafficPosition !== null && $pos !== $this->trafficPosition) {
                     return Http::response([]); // no data at this position
                 }
@@ -133,6 +140,26 @@ final class NotifyCampaignJobTest extends TestCase
         $bot->assertRaw(fn ($request) => str_contains(self::messageText($request), '#8001')); // rendered with data
 
         $this->assertSame(2, $child->fresh()->resolved_position, 'detected funnel position cached');
+    }
+
+    public function test_invalid_position_422_during_probe_does_not_crash_digest(): void
+    {
+        // Regression: probing landing_uuids[N] beyond the funnel depth made AIO
+        // return 422 and the exception killed the whole digest → nothing ever
+        // delivered, last_notified never stamped, job retried forever.
+        $this->steps = ['step-1' => ['lp-a', 'lp-b']];
+        $this->trafficUuids = [];   // no traffic anywhere today
+        $this->errorPosition = 4;   // landing_uuids[4] → 422, must be skipped
+        [$user, $sub] = $this->subscribe();
+
+        $bot = Nutgram::fake();
+        (new NotifyCampaignJob($user->id, $sub->id))
+            ->handle($bot, app(GroupReportRenderer::class), app(PeriodParser::class));
+
+        // Digest still delivered (the silent one-liner) and stamped the child,
+        // so the schedule won't re-fire-and-crash every tick.
+        $bot->assertCalled('sendMessage', 1);
+        $this->assertNotNull($sub->children()->first()->last_notified_at);
     }
 
     public function test_fully_silent_campaign_sends_short_one_liner(): void

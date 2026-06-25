@@ -8,6 +8,7 @@ use App\Services\Stats\ComparisonReporter;
 use App\Services\Stats\MetricColumnResolver;
 use App\Services\Stats\MvtFormatter;
 use App\Services\Stats\MvtReporter;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Renders ONE compare/MVT group into Telegram HTML — shared by the standalone
@@ -122,7 +123,18 @@ final class GroupReportRenderer
         // cache the first that returns data.
         $candidates = array_values(array_unique([$structurePosition, ...self::CANDIDATE_POSITIONS]));
         foreach ($candidates as $pos) {
-            $html = $render($pos, true);
+            try {
+                $html = $render($pos, true);
+            } catch (\Throwable $e) {
+                // landing_uuids[N] beyond this funnel's depth → AIO 422
+                // "Wrong query". That's just "not this position", not a real
+                // failure — skip it so one bad candidate can't crash the push.
+                Log::debug('position probe rejected', [
+                    'group_id' => $group->id, 'position' => $pos, 'error' => $e->getMessage(),
+                ]);
+
+                continue;
+            }
             if ($html !== null) {
                 $group->resolved_position = $pos;
                 $group->save();

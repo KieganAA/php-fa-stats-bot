@@ -77,16 +77,23 @@ class NotifyCampaignJob implements ShouldQueue
 
         $sections = [];
         $emptyLabels = [];
+        $erroredLabels = [];
         foreach ($children as $child) {
             try {
                 $html = $renderer->render($child, $user, $window, digestMode: true);
             } catch (Throwable $e) {
+                // One section failing (e.g. a transient AIO error) must NOT kill
+                // the whole digest — that would block the campaign forever and
+                // never stamp last_notified. Collapse the section to a note and
+                // carry on; the rest still delivers.
                 Log::warning('campaign digest section failed', [
                     'campaign_subscription_id' => $sub->id,
                     'group_id' => $child->id,
                     'error' => $e->getMessage(),
                 ]);
-                throw $e; // let the queue retry the whole digest
+                $erroredLabels[] = $this->sectionCaption($child);
+
+                continue;
             }
 
             $caption = $this->sectionCaption($child);
@@ -99,12 +106,18 @@ class NotifyCampaignJob implements ShouldQueue
         }
 
         $header = $this->header($sub, $window);
+        $errored = $erroredLabels !== []
+            ? "\n⚠️ <i>".$this->escape(implode(' · ', $erroredLabels)).' — ошибка отчёта, попробую снова</i>'
+            : '';
 
         if ($sections === []) {
             // Whole campaign is silent — one short line, not a dash table.
             // Still counts as a push so the schedule doesn't re-fire each tick.
+            $note = $erroredLabels !== [] && $emptyLabels === []
+                ? '' // all sections errored — the ⚠️ line below says enough
+                : "\nнет трафика за окно — все сплиты/MVT по нулям.";
             $bot->sendMessage(
-                text: "😴 {$header}\nнет трафика за окно — все сплиты/MVT по нулям.",
+                text: "😴 {$header}{$note}{$errored}",
                 chat_id: (int) $user->telegram_user_id,
                 parse_mode: 'HTML',
                 disable_web_page_preview: true,
@@ -112,6 +125,9 @@ class NotifyCampaignJob implements ShouldQueue
         } else {
             if ($emptyLabels !== []) {
                 $sections[] = '😴 <i>'.$this->escape(implode(' · ', $emptyLabels)).' — нет трафика</i>';
+            }
+            if ($errored !== '') {
+                $sections[] = ltrim($errored, "\n");
             }
             foreach ($this->chunk($header, $sections) as $message) {
                 $bot->sendMessage(

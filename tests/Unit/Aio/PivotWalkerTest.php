@@ -77,6 +77,24 @@ class PivotWalkerTest extends TestCase
         $this->assertSame(['group_0' => 'DK'], $rows[0]['dimensions']);
     }
 
+    public function test_recovers_dimension_from_map_key_when_group_marker_absent(): void
+    {
+        // Real AIO shape for a single-level campaign-scoped grouping: keyed by
+        // the landing uuid, metrics inside, NO echoed group_0. The uuid must be
+        // recovered as group_0 or ComparisonReporter can't map rows → landings.
+        $pivot = [
+            '400bc191-uuid' => ['status' => 'fine', 'metric-a' => 152, 'metric-b' => 8.9],
+            'a88856a9-uuid' => ['status' => 'fine', 'metric-a' => 70],
+        ];
+
+        $rows = PivotWalker::flatten($pivot);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame('400bc191-uuid', $rows[0]['dimensions']['group_0']);
+        $this->assertSame(152, $rows[0]['metrics']['metric-a']);
+        $this->assertSame('a88856a9-uuid', $rows[1]['dimensions']['group_0']);
+    }
+
     public function test_empty_string_dimension_value_is_preserved(): void
     {
         $pivot = [

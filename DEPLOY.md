@@ -30,6 +30,13 @@ One-off commands on prod:
 ssh root@164.92.219.14 'cd /opt/fa-stats-bot && docker compose -f docker-compose.prod.yml exec app php artisan <cmd>'
 ```
 
+**Changing `.env` on prod:** edit `/opt/fa-stats-bot/.env`, then **force-recreate** the app containers — `config:cache`/`octane:reload`/`restart` are NOT enough. Compose injects `env_file` vars into the container environment at *create* time, and Laravel's immutable dotenv won't override an already-set env var, so the old value sticks until the container is recreated:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --force-recreate app worker scheduler
+docker compose -f docker-compose.prod.yml exec app php artisan config:cache
+```
+
 Telegram wiring (already done; re-run only after URL/secret changes):
 
 ```bash

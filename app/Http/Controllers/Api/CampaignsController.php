@@ -103,6 +103,7 @@ class CampaignsController
             ),
             'schedule_type' => 'sometimes|in:interval,daily',
             'daily_at' => ['sometimes', 'nullable', 'regex:/^([01]?\d|2[0-3]):[0-5]\d$/'],
+            'report_period' => 'sometimes|in:'.implode(',', CampaignSubscription::REPORT_PERIODS),
         ]);
 
         if (array_key_exists('paused', $data)) {
@@ -127,6 +128,10 @@ class CampaignsController
                 : null;
             $campaign->daily_at = $dailyAt;
             $childPatch['daily_at'] = $dailyAt;
+        }
+        if (array_key_exists('report_period', $data)) {
+            $campaign->report_period = $data['report_period'];
+            $childPatch['report_period'] = $data['report_period'];
         }
         if ($childPatch !== []) {
             $campaign->children()->update($childPatch);
@@ -272,6 +277,7 @@ class CampaignsController
             'notify_interval_minutes' => $interval,
             'schedule_type' => $sub->schedule_type ?? UserCompareGroup::SCHEDULE_INTERVAL,
             'daily_at' => $sub->daily_at,
+            'report_period' => $sub->report_period ?? CampaignSubscription::DEFAULT_REPORT_PERIOD,
             'last_synced_at' => $sub->last_synced_at?->toIso8601String(),
             'next_push_at' => $nextPush?->toIso8601String(),
             'splits' => $active->where('mode', UserCompareGroup::MODE_COMPARE)->count(),

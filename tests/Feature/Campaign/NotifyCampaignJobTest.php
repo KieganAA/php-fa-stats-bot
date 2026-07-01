@@ -184,6 +184,28 @@ final class NotifyCampaignJobTest extends TestCase
         $this->assertNotNull($sub->children()->first()->last_notified_at);
     }
 
+    public function test_report_period_setting_drives_the_digest_window(): void
+    {
+        // A subscription configured to report "yesterday" must push a yesterday
+        // window, not the old hardcoded "today" — the schedule (how often) and
+        // the report window (which span) are independent knobs.
+        $this->steps = ['step-1' => ['lp-a', 'lp-b']];
+        $this->trafficUuids = ['lp-a', 'lp-b'];
+        [$user, $sub] = $this->subscribe();
+
+        $sub->report_period = 'yesterday';
+        $sub->save();
+
+        $bot = Nutgram::fake();
+        (new NotifyCampaignJob($user->id, $sub->id))
+            ->handle($bot, app(GroupReportRenderer::class), app(PeriodParser::class));
+
+        $bot->assertCalled('sendMessage', 1);
+        // The digest header carries the window label; "yesterday" here proves
+        // the window came from report_period, not the default "today".
+        $bot->assertRaw(fn ($request) => str_contains(self::messageText($request), 'yesterday'));
+    }
+
     // ===== helpers =====
 
     /** Extract the `text` field from a captured Telegram API PSR request. */

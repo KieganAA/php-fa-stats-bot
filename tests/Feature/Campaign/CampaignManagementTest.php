@@ -120,6 +120,32 @@ final class CampaignManagementTest extends TestCase
         $this->assertSame('09:30', $child->daily_at);
     }
 
+    public function test_update_report_period_propagates_to_children(): void
+    {
+        [$user, $headers] = $this->authedUser();
+        $sub = $this->makeSubscription($user, ['step-1' => ['lp-a', 'lp-b']]);
+
+        $this->patchJson("/api/ext/campaigns/{$sub->id}", [
+            'report_period' => 'last week',
+        ], $headers)
+            ->assertStatus(200)
+            ->assertJsonPath('campaign.report_period', 'last week');
+
+        // The cron tick reads the children, so the window must be pushed down.
+        $child = UserCompareGroup::query()->where('campaign_subscription_id', $sub->id)->firstOrFail();
+        $this->assertSame('last week', $child->report_period);
+    }
+
+    public function test_update_report_period_rejects_unknown_token(): void
+    {
+        [$user, $headers] = $this->authedUser();
+        $sub = $this->makeSubscription($user, ['step-1' => ['lp-a', 'lp-b']]);
+
+        $this->patchJson("/api/ext/campaigns/{$sub->id}", [
+            'report_period' => 'next-tuesday',
+        ], $headers)->assertStatus(422);
+    }
+
     public function test_daily_schedule_due_logic(): void
     {
         [$user] = $this->authedUser();

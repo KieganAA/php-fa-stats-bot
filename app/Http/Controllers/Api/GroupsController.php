@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Aio\Landing;
+use App\Models\CampaignSubscription;
 use App\Models\UserCompareGroup;
 use App\Services\Auth\AppContext;
 use App\Services\Stats\LandingFormatter;
@@ -96,6 +97,7 @@ class GroupsController
                 UserCompareGroup::INTERVAL_MIN,
                 UserCompareGroup::INTERVAL_MAX,
             ),
+            'report_period' => 'sometimes|in:'.implode(',', CampaignSubscription::REPORT_PERIODS),
         ]);
 
         if (array_key_exists('paused', $data)) {
@@ -106,6 +108,9 @@ class GroupsController
         }
         if (array_key_exists('notify_interval_minutes', $data)) {
             $group->notify_interval_minutes = (int) $data['notify_interval_minutes'];
+        }
+        if (array_key_exists('report_period', $data)) {
+            $group->report_period = $data['report_period'];
         }
         $group->save();
 
@@ -136,6 +141,7 @@ class GroupsController
             'mode' => $group->mode,
             'paused' => $group->paused_at !== null,
             'notify_interval_minutes' => $interval,
+            'report_period' => $group->report_period ?? CampaignSubscription::DEFAULT_REPORT_PERIOD,
             'last_notified_at' => $group->last_notified_at?->toIso8601String(),
             'next_push_at' => $nextPushAt?->toIso8601String(),
             'members' => $group->members->map(function ($m) {

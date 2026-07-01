@@ -142,4 +142,10 @@ class UserCompareGroup extends Model
     {
         return $this->paused_at === null;
     }
+
+    /** Configured digest window token (default "today"). */
+    public function reportPeriod(): string
+    {
+        return $this->report_period ?: CampaignSubscription::DEFAULT_REPORT_PERIOD;
+    }
 }

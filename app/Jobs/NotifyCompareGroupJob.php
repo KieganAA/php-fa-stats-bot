@@ -65,9 +65,10 @@ class NotifyCompareGroupJob implements ShouldQueue
             return;
         }
 
-        // Reports cover the whole current day in the user's timezone — the
-        // interval only controls how OFTEN we push, not the window size.
-        $window = $periods->parse('today', $user->timezone);
+        // The group's configured report period sets the window (default
+        // "today", in the user's timezone); the interval only controls how
+        // OFTEN we push.
+        $window = $periods->parse($group->reportPeriod(), $user->timezone);
         $html = null;
 
         try {

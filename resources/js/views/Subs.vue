@@ -114,6 +114,22 @@
                     </div>
                 </div>
 
+                <!-- Report window: which period each scheduled push covers.
+                     Independent of the schedule (how often) above. -->
+                <div class="mt-2 flex flex-wrap items-center gap-1">
+                    <span class="text-[10px] text-[var(--tg-theme-hint-color,#6b7280)] mr-0.5">отчёт за:</span>
+                    <button
+                        v-for="p in reportPeriods"
+                        :key="p.value"
+                        type="button"
+                        class="text-[10px] px-2 py-0.5 rounded-full border transition-colors"
+                        :class="periodOf(c) === p.value
+                            ? 'bg-[var(--tg-theme-button-color,#3b82f6)] text-[var(--tg-theme-button-text-color,#fff)] border-transparent'
+                            : 'border-[var(--tg-theme-section-separator-color,#e5e7eb)] text-[var(--tg-theme-hint-color,#6b7280)]'"
+                        @click="setReportPeriod(c, p.value)"
+                    >{{ p.label }}</button>
+                </div>
+
                 <details v-if="c.children && c.children.length" class="mt-2">
                     <summary class="text-xs text-[var(--tg-theme-hint-color,#6b7280)] cursor-pointer select-none">
                         {{ c.children.length }} подписок внутри
@@ -204,6 +220,17 @@ const intervalOptions = [
     { value: 1440, label: '24ч' },
 ];
 
+// Digest window presets — each value is a token the server's PeriodParser
+// understands (kept in sync with CampaignSubscription::REPORT_PERIODS).
+const reportPeriods = [
+    { value: 'today', label: 'сегодня' },
+    { value: 'yesterday', label: 'вчера' },
+    { value: '7d', label: '7 дней' },
+    { value: 'week', label: 'неделя' },
+    { value: 'last week', label: 'прошл. неделя' },
+    { value: 'month', label: 'месяц' },
+];
+
 // Live label while the user drags the slider (committed on release).
 const dragLabel = ref({});
 
@@ -239,6 +266,21 @@ async function setDailyAt(c, value) {
     if (!value) return;
     try {
         const r = await api.updateCampaign(c.id, { schedule_type: 'daily', daily_at: value });
+        Object.assign(c, r.campaign);
+        hapticImpact('light');
+    } catch (e) {
+        showAlert(e.message);
+    }
+}
+
+function periodOf(c) {
+    return c.report_period || 'today';
+}
+
+async function setReportPeriod(c, value) {
+    if (periodOf(c) === value) return;
+    try {
+        const r = await api.updateCampaign(c.id, { report_period: value });
         Object.assign(c, r.campaign);
         hapticImpact('light');
     } catch (e) {

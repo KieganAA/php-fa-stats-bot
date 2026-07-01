@@ -17,12 +17,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $campaign_name
  * @property array|null $countries
  * @property int $notify_interval_minutes
+ * @property string|null $report_period
  * @property \Illuminate\Support\Carbon|null $paused_at
  * @property \Illuminate\Support\Carbon|null $last_synced_at
  */
 class CampaignSubscription extends Model
 {
     public const DEFAULT_INTERVAL_MINUTES = 180;
+
+    /** Window each scheduled digest reports; null falls back to this. */
+    public const DEFAULT_REPORT_PERIOD = 'today';
+
+    /**
+     * Digest-window tokens offered in the UI. Each is a value PeriodParser
+     * already understands; keep this in sync with PeriodPicker/Subs.vue.
+     */
+    public const REPORT_PERIODS = ['today', 'yesterday', '7d', 'week', 'last week', 'month'];
 
     protected $guarded = ['id'];
 
@@ -48,6 +58,12 @@ class CampaignSubscription extends Model
     public function isActive(): bool
     {
         return $this->paused_at === null;
+    }
+
+    /** Configured digest window token, defaulting to "today". */
+    public function reportPeriod(): string
+    {
+        return $this->report_period ?: self::DEFAULT_REPORT_PERIOD;
     }
 
     /** Short identity for labels: "#116400 CA". */

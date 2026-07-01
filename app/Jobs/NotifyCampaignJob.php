@@ -71,9 +71,10 @@ class NotifyCampaignJob implements ShouldQueue
             return;
         }
 
-        // Reports cover the whole current day in the user's timezone — the
-        // schedule only controls how OFTEN we push, not the window size.
-        $window = $periods->parse('today', $user->timezone);
+        // The digest window is the subscription's configured report period
+        // (default "today", in the user's timezone). The schedule controls how
+        // OFTEN we push; this controls WHICH span each push reports.
+        $window = $periods->parse($sub->reportPeriod(), $user->timezone);
 
         $sections = [];
         $emptyLabels = [];
@@ -151,7 +152,12 @@ class NotifyCampaignJob implements ShouldQueue
         $name = mb_strlen($sub->campaign_name) > 48
             ? mb_substr($sub->campaign_name, 0, 47).'…'
             : $sub->campaign_name;
-        $w = $window['from']->format('H:i').'–'.$window['to']->format('H:i');
+        // Same-day window ("today"/"yesterday") → hour range; a multi-day
+        // window ("last week", "month") → date range, so "00:00–23:59" can't
+        // masquerade as a single day.
+        $w = $window['from']->format('Y-m-d') === $window['to']->format('Y-m-d')
+            ? $window['from']->format('H:i').'–'.$window['to']->format('H:i')
+            : $window['from']->format('d.m').'–'.$window['to']->format('d.m');
 
         return "🔔 <b>{$sub->shortLabel()}</b> — {$this->escape($name)}\n".
             "<i>{$this->escape($window['label'])} · {$w} ({$this->escape($window['timezone'])})</i>";

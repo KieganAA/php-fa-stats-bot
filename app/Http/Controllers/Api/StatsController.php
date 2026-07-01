@@ -31,13 +31,15 @@ class StatsController
         $data = $request->validate([
             'primitive' => 'required|string|max:64',
             'period' => 'sometimes|nullable|string|max:64',
+            'from' => 'nullable|required_with:to|date_format:Y-m-d',
+            'to' => 'nullable|required_with:from|date_format:Y-m-d',
         ]);
 
         try {
             $user = $ctx->userOrFail();
             $resolved = $primitives->resolve($data['primitive']);
             $resolved = $landingFmt->enrichLabel($resolved, $user->landingDisplayOpts());
-            $window = $periods->parse($data['period'] ?? null, $user->timezone);
+            $window = $periods->resolve($data['period'] ?? null, $data['from'] ?? null, $data['to'] ?? null, $user->timezone);
 
             $pivot = $reports->statsByPrimitive(
                 filterKey: $resolved['filter_key'],

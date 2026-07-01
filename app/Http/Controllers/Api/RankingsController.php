@@ -41,12 +41,14 @@ class RankingsController
         $data = $request->validate([
             'kind' => 'required|string|in:geo,buyers,lp1,lp2',
             'period' => 'sometimes|nullable|string|max:64',
+            'from' => 'nullable|required_with:to|date_format:Y-m-d',
+            'to' => 'nullable|required_with:from|date_format:Y-m-d',
             'top_n' => 'sometimes|integer|min:1|max:50',
         ]);
 
         try {
             $user = $ctx->userOrFail();
-            $window = $periods->parse($data['period'] ?? null, $user->timezone);
+            $window = $periods->resolve($data['period'] ?? null, $data['from'] ?? null, $data['to'] ?? null, $user->timezone);
 
             $context = match ($data['kind']) {
                 'lp1' => MetricColumnResolver::LP1,

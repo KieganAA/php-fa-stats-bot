@@ -28,6 +28,8 @@ class MvtController
         $data = $request->validate([
             'primitive' => 'required|string|max:64',
             'period' => 'sometimes|nullable|string|max:64',
+            'from' => 'nullable|required_with:to|date_format:Y-m-d',
+            'to' => 'nullable|required_with:from|date_format:Y-m-d',
         ]);
 
         $token = trim($data['primitive']);
@@ -43,7 +45,7 @@ class MvtController
 
         try {
             $user = $ctx->userOrFail();
-            $window = $periods->parse($data['period'] ?? null, $user->timezone);
+            $window = $periods->resolve($data['period'] ?? null, $data['from'] ?? null, $data['to'] ?? null, $user->timezone);
             $report = $reporter->report($landing, $window);
 
             $names = $user->metricNamesFor(MetricColumnResolver::MVT);

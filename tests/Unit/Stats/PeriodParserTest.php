@@ -251,4 +251,74 @@ class PeriodParserTest extends TestCase
         $this->assertSame('2026-03-01 00:00:00', $r['from']->format('Y-m-d H:i:s'));
         $this->assertSame('2026-03-31 23:59:59', $r['to']->format('Y-m-d H:i:s'));
     }
+
+    public function test_range_is_inclusive_from_start_to_end_of_day(): void
+    {
+        $parser = new PeriodParser('UTC');
+
+        $r = $parser->range('2026-04-10', '2026-04-20');
+
+        $this->assertSame('2026-04-10 00:00:00', $r['from']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-04-20 23:59:59', $r['to']->format('Y-m-d H:i:s'));
+        $this->assertSame('10.04 – 20.04.2026', $r['label']);
+    }
+
+    public function test_range_single_day_label(): void
+    {
+        $r = (new PeriodParser('UTC'))->range('2026-04-15', '2026-04-15');
+
+        $this->assertSame('2026-04-15 00:00:00', $r['from']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-04-15 23:59:59', $r['to']->format('Y-m-d H:i:s'));
+        $this->assertSame('15.04.2026', $r['label']);
+    }
+
+    public function test_range_reversed_inputs_are_swapped(): void
+    {
+        $r = (new PeriodParser('UTC'))->range('2026-04-20', '2026-04-10');
+
+        $this->assertSame('2026-04-10 00:00:00', $r['from']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-04-20 23:59:59', $r['to']->format('Y-m-d H:i:s'));
+    }
+
+    public function test_range_may_cross_a_month_boundary(): void
+    {
+        // pivot-report has no month-boundary limit, so this must NOT throw.
+        $r = (new PeriodParser('UTC'))->range('2026-03-28', '2026-04-05');
+
+        $this->assertSame('2026-03-28 00:00:00', $r['from']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-04-05 23:59:59', $r['to']->format('Y-m-d H:i:s'));
+    }
+
+    public function test_range_rejects_an_absurdly_wide_span(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/диапазон/u');
+
+        (new PeriodParser('UTC'))->range('2025-01-01', '2026-12-31');
+    }
+
+    public function test_range_honours_timezone(): void
+    {
+        $r = (new PeriodParser('UTC'))->range('2026-04-10', '2026-04-10', 'Europe/Berlin');
+
+        $this->assertSame('Europe/Berlin', $r['timezone']);
+        $this->assertSame('Europe/Berlin', $r['from']->getTimezone()->getName());
+    }
+
+    public function test_resolve_prefers_explicit_range_over_period(): void
+    {
+        $r = (new PeriodParser('UTC'))->resolve('today', '2026-04-10', '2026-04-20', 'UTC');
+
+        $this->assertSame('10.04 – 20.04.2026', $r['label']);
+        $this->assertSame('2026-04-10 00:00:00', $r['from']->format('Y-m-d H:i:s'));
+    }
+
+    public function test_resolve_falls_back_to_period_when_range_absent_or_blank(): void
+    {
+        $parser = new PeriodParser('UTC');
+
+        $this->assertSame('yesterday', $parser->resolve('yesterday', null, null)['label']);
+        $this->assertSame('yesterday', $parser->resolve('yesterday', '', '')['label']);
+        $this->assertSame('today', $parser->resolve(null, null, null)['label']);
+    }
 }

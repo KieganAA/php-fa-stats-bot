@@ -27,6 +27,8 @@ class CompareController
         $data = $request->validate([
             'primitives' => 'required|string|max:255',
             'period' => 'sometimes|nullable|string|max:64',
+            'from' => 'nullable|required_with:to|date_format:Y-m-d',
+            'to' => 'nullable|required_with:from|date_format:Y-m-d',
         ]);
 
         $tokens = array_values(array_filter(
@@ -39,7 +41,7 @@ class CompareController
 
         try {
             $user = $ctx->userOrFail();
-            $window = $periods->parse($data['period'] ?? null, $user->timezone);
+            $window = $periods->resolve($data['period'] ?? null, $data['from'] ?? null, $data['to'] ?? null, $user->timezone);
             $names = $user->metricNamesFor(MetricColumnResolver::COMPARE);
             $labels = $user->metricLabelOverrides();
             $html = $reporter->report($tokens, $window, $names, $labels);

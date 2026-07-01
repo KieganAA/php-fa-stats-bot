@@ -31,6 +31,9 @@ use RuntimeException;
  */
 class PeriodParser
 {
+    /** Guard against a fat-fingered decade-wide custom range hammering AIO. */
+    private const MAX_RANGE_DAYS = 400;
+
     public function __construct(
         private readonly string $defaultTimezone = 'UTC',
     ) {}
@@ -121,6 +124,53 @@ class PeriodParser
         throw new RuntimeException("Unknown period: '{$input}'");
     }
 
+    /**
+     * Resolve a window from either an explicit [from, to] calendar range or,
+     * when those are absent, a named period token. `from`/`to` win when both
+     * are present — this is the single entry point the Mini App calendar and
+     * the preset picker both funnel through.
+     *
+     * @return array{from: CarbonImmutable, to: CarbonImmutable, timezone: string, label: string}
+     */
+    public function resolve(?string $period, ?string $from, ?string $to, ?string $timezone = null): array
+    {
+        if (is_string($from) && $from !== '' && is_string($to) && $to !== '') {
+            return $this->range($from, $to, $timezone);
+        }
+
+        return $this->parse($period, $timezone);
+    }
+
+    /**
+     * Build a window from two calendar dates (`Y-m-d`), inclusive: start-of-day
+     * of `from` through end-of-day of `to`, in the requested timezone. Reversed
+     * inputs are swapped rather than rejected. Callers should pre-validate the
+     * date format; malformed input surfaces as an exception.
+     *
+     * Feeds AIO's pivot-report endpoint, which — unlike tables/data — has no
+     * month-boundary restriction, so arbitrary spans are safe here.
+     *
+     * @return array{from: CarbonImmutable, to: CarbonImmutable, timezone: string, label: string}
+     */
+    public function range(string $from, string $to, ?string $timezone = null): array
+    {
+        $tz = $timezone ?: $this->defaultTimezone;
+
+        // "!" zeroes the time fields so no wall-clock leaks in from "now".
+        $start = CarbonImmutable::createFromFormat('!Y-m-d', $from, $tz)->startOfDay();
+        $end = CarbonImmutable::createFromFormat('!Y-m-d', $to, $tz)->endOfDay();
+
+        if ($start->greaterThan($end)) {
+            [$start, $end] = [$end->startOfDay(), $start->endOfDay()];
+        }
+
+        if ($start->diffInDays($end) > self::MAX_RANGE_DAYS) {
+            throw new RuntimeException('Слишком большой диапазон (макс. '.self::MAX_RANGE_DAYS.' дней).');
+        }
+
+        return $this->result($start, $end, $tz, $this->rangeLabel($start, $end));
+    }
+
     private function ago(CarbonImmutable $now, string $tz, int $n, string $unit): array
     {
         $start = match ($unit) {
@@ -131,6 +181,22 @@ class PeriodParser
         };
 
         return $this->result($start, $now, $tz, "{$n}{$unit}");
+    }
+
+    /**
+     * Compact human label for a custom range, e.g. "01.07 – 07.07.2026", or
+     * just "07.07.2026" for a single day. Drops the year on the left endpoint
+     * when both fall in the same year.
+     */
+    private function rangeLabel(CarbonImmutable $from, CarbonImmutable $to): string
+    {
+        if ($from->isSameDay($to)) {
+            return $from->format('d.m.Y');
+        }
+
+        $left = $from->year === $to->year ? $from->format('d.m') : $from->format('d.m.Y');
+
+        return $left.' – '.$to->format('d.m.Y');
     }
 
     /**

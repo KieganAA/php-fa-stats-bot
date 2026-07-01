@@ -44,6 +44,17 @@ async function request(method, path, { query, body } = {}) {
     return data;
 }
 
+// PeriodPicker hands us either a preset token ('today', '7d', …) or a custom
+// range 'range:YYYY-MM-DD:YYYY-MM-DD'. The server accepts a named `period` or
+// an explicit `from`/`to` pair (the latter wins); expand to the right params.
+function periodQuery(period) {
+    if (typeof period === 'string' && period.startsWith('range:')) {
+        const [, from, to] = period.split(':');
+        return { from, to };
+    }
+    return { period };
+}
+
 export const api = {
     // Profile / settings
     me: () => request('GET', '/me'),
@@ -59,13 +70,13 @@ export const api = {
 
     // Numbers
     stats: (primitive, period) =>
-        request('GET', '/stats', { query: { primitive, period } }),
+        request('GET', '/stats', { query: { primitive, ...periodQuery(period) } }),
     compare: (primitives, period) =>
-        request('GET', '/compare', { query: { primitives: primitives.join(','), period } }),
+        request('GET', '/compare', { query: { primitives: primitives.join(','), ...periodQuery(period) } }),
     rankings: (kind, period, topN) =>
-        request('GET', '/rankings', { query: { kind, period, top_n: topN } }),
+        request('GET', '/rankings', { query: { kind, ...periodQuery(period), top_n: topN } }),
     mvt: (primitive, period) =>
-        request('GET', '/mvt', { query: { primitive, period } }),
+        request('GET', '/mvt', { query: { primitive, ...periodQuery(period) } }),
 
     // Campaign subscriptions — the Mini App's primary surface.
     listCampaigns: () => request('GET', '/campaigns'),

@@ -101,6 +101,34 @@ class MiniAppApiTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_rankings_accepts_explicit_calendar_range(): void
+    {
+        // The Mini App calendar sends from/to instead of a named period; the
+        // window must reflect the picked span, not "today".
+        $this->stubLandingReports();
+        $headers = ['Authorization' => 'tma '.$this->makeInitData(1, 'alice')];
+
+        $resp = $this->getJson('/api/v1/rankings?kind=geo&from=2026-04-10&to=2026-04-20', $headers);
+
+        $resp->assertStatus(200);
+        $resp->assertJsonPath('window.label', '10.04 – 20.04.2026');
+        $this->assertStringStartsWith('2026-04-10', $resp->json('window.from'));
+        $this->assertStringStartsWith('2026-04-20', $resp->json('window.to'));
+    }
+
+    public function test_rankings_rejects_malformed_date_and_lonely_endpoint(): void
+    {
+        $headers = ['Authorization' => 'tma '.$this->makeInitData(1, 'alice')];
+
+        // Not a Y-m-d date.
+        $this->getJson('/api/v1/rankings?kind=geo&from=nonsense&to=2026-04-20', $headers)
+            ->assertStatus(422);
+
+        // `from` without its `to` partner.
+        $this->getJson('/api/v1/rankings?kind=geo&from=2026-04-10', $headers)
+            ->assertStatus(422);
+    }
+
     public function test_groups_full_lifecycle(): void
     {
         $headers = ['Authorization' => 'tma '.$this->makeInitData(1, 'alice')];
